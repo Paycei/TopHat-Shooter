@@ -1,7 +1,7 @@
 import raylib, math
 import modding/mod_patch_core
 import draw_prims
-import particle_types, types, bullet_skins, bullet_shapes, utils
+import particle_types, types, bullet_skins, bullet_shapes, utils, coop/coop_context
 import modding/[mod_assets, mod_hooks]
 from run_statistics import trackBulletFired
 
@@ -252,7 +252,10 @@ proc newBullet*(x, y: float32, direction: Vector2, speed, damage: float32, fromP
     colorOverride: colorOverride,  # Custom bullet color (alpha=0 = use default)
     bulletSkin: bulletSkin,  # Bullet skin type
     bulletShape: bulletShape,  # Cosmetic bullet shape
-    ownerPlayerIndex: ownerPlayerIndex  # For PvP: which player (0 or 1) shot this (-1 for non-PvP)
+    # Who fired it: PvP passes the shooter; in a co-op run a player's shot is the
+    # active player's (coop_context), so its hits use that player's build.
+    ownerPlayerIndex: (if ownerPlayerIndex < 0 and fromPlayer and coopActive(): activeSlot.int
+                       else: ownerPlayerIndex)
   )
   if bulletRadius > 0.0:
     result.radius = bulletRadius

@@ -199,7 +199,10 @@ proc collectPickup*(game: Game, orb: XpOrb): bool {.moddable.} =
   ## and feedback (the caller removes it).
   if modPickup(game, "xp", orb.value.float64):
     return
-  game.player.xp += orb.value
+  # A co-op team shares its XP: every player still in the run gains it, so
+  # they level -- and draft -- together.
+  for p in game.players:
+    if not p.eliminated: p.xp += orb.value
   playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
   spawnExplosionPooled(game.particlePool, orb.pos.x, orb.pos.y,
                        Color(r: 90, g: 255, b: 170, a: 255), 5)
@@ -221,7 +224,8 @@ proc collectAllXpOrbs*(game: Game) {.moddable.} =
     total += orb.value
   game.xpOrbs = @[]
   if total > 0:
-    game.player.xp += total
+    for p in game.players:   # (shared, as for a single orb)
+      if not p.eliminated: p.xp += total
     playSound(stCoinPickup, 0.4, 1.4)
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x + 18, game.player.pos.y - 8, total, cikXp))

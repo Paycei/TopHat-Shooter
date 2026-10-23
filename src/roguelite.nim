@@ -2,6 +2,7 @@ import json, os, random, strutils, math
 import modding/mod_patch_core
 import modding/[mod_hooks, mod_registry]
 import types, settings, save_system, run_statistics, powerup, powerup_data, patches, xp_orb, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
+import coop/coop_context
 
 const
   RogueliteProfileVersion* = 5
@@ -429,21 +430,21 @@ proc installPatch*(game: Game, patch: RogueliteRelicType, modKey = ""): bool {.m
     if modKey.len == 0 or game.rogueliteRun.hasModRelic(modKey) or findPatch(modKey) < 0:
       return false
     game.rogueliteRun.relics.add(makeRelic(rrtMod, modKey))
-    game.player.patches.incl(rrtMod)
+    for p in game.players: p.patches.incl(rrtMod)   # a co-op team shares its patches
     modPatchInstalled(game, modKey)
     return true
   if game.rogueliteRun.hasRelic(patch):
     return false
   game.rogueliteRun.relics.add(makeRelic(patch))
-  game.player.patches.incl(patch)
+  for p in game.players: p.patches.incl(patch)   # a co-op team shares its patches
   firePatchInstalled(game, $patch)
   case patch
   of rrtRollback:
-    game.player.rollbackArmed = true
+    for p in game.players: p.rollbackArmed = true
   of rrtFirewallRule:
-    game.player.patchBlockCharges = max(game.player.patchBlockCharges, 1)
+    for p in game.players: p.patchBlockCharges = max(p.patchBlockCharges, 1)
   of rrtCronJob:
-    game.player.cronJobTimer = CronJobInterval
+    for p in game.players: p.cronJobTimer = CronJobInterval
   else:
     discard
   true
@@ -454,11 +455,11 @@ proc installPatch*(game: Game, relic: RogueliteRelic): bool {.moddable.} =
 proc syncPlayerPatches*(game: Game) {.moddable.} =
   ## Rebuild the player's patch mirror from the run (after a checkpoint
   ## restore, which rebuilds the run's relic list from JSON).
-  if game.player.isNil: return
-  game.player.patches = {}
-  if game.rogueliteRun.isNil: return
-  for relic in game.rogueliteRun.relics:
-    game.player.patches.incl(relic.relicType)
+  for p in game.players:   # (every player: a co-op team shares its patches)
+    p.patches = {}
+    if game.rogueliteRun.isNil: continue
+    for relic in game.rogueliteRun.relics:
+      p.patches.incl(relic.relicType)
 
 proc unownedPatches(run: RogueliteRun,
                      exclude: set[RogueliteRelicType] = {}): seq[RogueliteRelicType] {.moddable.} =
@@ -541,6 +542,10 @@ proc completeRogueliteBoss*(game: Game) {.moddable.} =
     # endless loop. The endless roll is deferred to rogueliteContinueEndless, called
     # only if the player chooses to push deeper rather than cash out.
     run.completed = true
+    if not game.cheatsUsed:   # every co-op teammate's own profile records the win too
+      pushTeamProfileEvent(game, ProfileEvent(kind: pekRogueliteWin, e: int32(run.endlessLoop),
+                                              c: int32(run.heat)))
+      pushTeamProfileEvent(game, ProfileEvent(kind: pekUnlock, text: "survival"))
     if not game.cheatsUsed and not game.rogueliteProfile.isNil:  # records feed shard-paying advancements
       let profile = game.rogueliteProfile
       profile.wins += 1
@@ -590,6 +595,11 @@ proc commitRogueliteRunProgress*(game: Game, died: bool): bool {.moddable.} =
   # A cheated run banks nothing: its shards/cores are discarded, and its records
   # are not written either, since they unlock advancements whose claims pay shards.
   if not game.cheatsUsed:
+    # Every co-op teammate banks the same into their own profile.
+    pushTeamProfileEvent(game, ProfileEvent(kind: pekRogueliteBank,
+      a: int32(game.rogueliteRun.shardsEarned), b: int32(game.rogueliteRun.coresEarned),
+      c: int32(game.rogueliteRun.floorNumber), d: int32(game.rogueliteRun.totalRoomsCleared),
+      e: int32(game.rogueliteRun.endlessLoop), flag: died and game.livesUsed == 0))
     game.rogueliteProfile.dataShards += game.rogueliteRun.shardsEarned
     game.rogueliteProfile.cores += game.rogueliteRun.coresEarned
     # Running totals survive the zeroing below, so the BSOD / victory screen

@@ -7,7 +7,26 @@
 
 import std/math
 import raylib
-import ../types, ../input_intent
+import ../types, ../input_intent, coop_context
+
+proc queueBotModalActions*(game: Game, frame: int, includeLocal = false) =
+  ## The bots' choices in the open team modal, after a short think: a card,
+  ## one purchase (if they can afford it) and done, the reveal closed, the
+  ## first floor. `includeLocal`: this machine's player is a bot too (tests).
+  let coop = game.coop
+  if coop.isNil or coop.modal == cmkNone: return
+  if coop.modalTimer > CoopModalTimeout - 0.8'f32: return
+  for p in game.players:
+    if p.isLocalPlayer and not includeLocal: continue
+    if coop.seats[p.slot].ready: continue
+    case coop.modal
+    of cmkDraft: queueBotAction(p.slot, cakPick, int32((frame + p.slot.int) mod 3))
+    of cmkShop:
+      queueBotAction(p.slot, cakBuy, 0)
+      queueBotAction(p.slot, cakDone)
+    of cmkCache: queueBotAction(p.slot, cakDone)
+    of cmkFloorVote: queueBotAction(p.slot, cakVote, 0)
+    of cmkNone: discard
 
 proc botIntent*(game: Game, p: Player, frame: int) =
   ## This frame's intent for bot-driven player `p`.

@@ -27,7 +27,8 @@ proc newWall*(x, y: float32, player: Player): Wall {.moddable.} =
     angle: facing,
     turretAngle: facing,
     # Plain walls get the oriented-slab shape; turret emplacements stay circular.
-    slabShape: not hasPowerUp(player, puWallTurrets)
+    slabShape: not hasPowerUp(player, puWallTurrets),
+    ownerSlot: player.slot
   )
 
 proc updateWall*(wall: Wall, dt: float32): bool {.moddable.} =
@@ -303,14 +304,18 @@ proc processWallTurret*(wall: var Wall, enemies: seq[Enemy], bullets: var seq[Bu
       wall.shootTimer = turretCooldown
 
 proc processPendingWallRespawns*(pending: var seq[PendingWallRespawn], walls: var seq[Wall],
-                                enemies: seq[Enemy], player: Player, particlePool: ParticlePool,
+                                enemies: seq[Enemy], players: seq[Player], particlePool: ParticlePool,
                                 dt: float32) {.moddable.} =
   var i = 0
   while i < pending.len:
     pending[i].timer -= dt
     if pending[i].timer <= 0:
       let spot = pending[i]
-      var blocked = distance(player.pos, spot.pos) < spot.radius + player.radius + 8
+      var blocked = false   # never re-form on top of anyone
+      for player in players:
+        if distance(player.pos, spot.pos) < spot.radius + player.radius + 8:
+          blocked = true
+          break
       if not blocked:
         for enemy in enemies:
           if enemy.isBoss and distance(enemy.pos, spot.pos) < spot.radius + enemy.radius:

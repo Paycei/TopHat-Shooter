@@ -6,6 +6,7 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
 import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, game/things, run_save, suspend, utils, tutorial
+import coop/coop_context, ui/coop_overlay
 import powerup_data
 import modding/[mod_state, mod_hooks, mod_assets, mod_registry]
 
@@ -167,34 +168,45 @@ proc bankRunLevelUps(game: Game) {.moddable.} =
   # at most one level is banked the instant the boss falls.
   if (isTimeSurvivalMode(game.mode) or game.mode == gmWaveBased) and
      game.bossWaveManager.isBossActive():
-    game.player.xp = min(game.player.xp, game.player.xpToNextLevel)
+    for p in game.players:
+      p.xp = min(p.xp, p.xpToNextLevel)
     return
+  # Every player banks their own levels. A co-op team shares its XP, so they
+  # level together, and the draft queue counts the team's level-ups once
+  # (everyone picks in the same draft).
   var levelsGained = 0
-  while game.player.xp >= game.player.xpToNextLevel:
-    game.player.xp -= game.player.xpToNextLevel
-    inc game.player.rogueliteLevel
-    # Wave mode is a 60-wave marathon, not a short floor run: it uses the
-    # steepened curve so levels decelerate instead of compounding all run.
-    game.player.xpToNextLevel = xpRequiredForLevel(game.player.rogueliteLevel, game.mode)
-    applyLevelUpStatBoost(game)
-    modLevelUp(game, game.player.rogueliteLevel)
-    inc levelsGained
+  for p in game.players:
+    if p.eliminated: continue
+    withPlayer(game, p):
+      var gained = 0
+      while game.player.xp >= game.player.xpToNextLevel:
+        game.player.xp -= game.player.xpToNextLevel
+        inc game.player.rogueliteLevel
+        # Wave mode is a 60-wave marathon, not a short floor run: it uses the
+        # steepened curve so levels decelerate instead of compounding all run.
+        game.player.xpToNextLevel = xpRequiredForLevel(game.player.rogueliteLevel, game.mode)
+        applyLevelUpStatBoost(game)
+        modLevelUp(game, game.player.rogueliteLevel)
+        inc gained
+      if gained > 0:
+        # Juice: one sound, burst, and banner summarizing the room's level gains.
+        if levelsGained == 0:
+          playSound(stPowerUp)
+        spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                             Color(r: 120, g: 255, b: 180, a: 255), 24)
+        showPerk(game, vec2(game.player.pos.x, game.player.pos.y - 28),
+                 t("roguelite_level_up") & " " & $game.player.rogueliteLevel,
+                 Color(r: 120, g: 255, b: 180, a: 255))
+      levelsGained = max(levelsGained, gained)
   if levelsGained > 0:
     game.pendingLevelDrafts += levelsGained
     # Telegraph beat before the modal actually opens. The banner, sound and
-    # burst below fire immediately, but the draft itself waits ~0.7 s of live
+    # burst above fire immediately, but the draft itself waits ~0.7 s of live
     # play. Without this the modal lands on the same frame the bar fills, which
     # is why a mid-wave level-up felt like being yanked out of the game: the
     # player had no notice, so their hands were still driving and shooting.
     # Now they see LEVEL UP, take their fingers off, and the screen follows.
     game.levelDraftDelay = max(game.levelDraftDelay, 0.7'f32)
-    # Juice: one sound, burst, and banner summarizing the room's level gains.
-    playSound(stPowerUp)
-    spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                         Color(r: 120, g: 255, b: 180, a: 255), 24)
-    showPerk(game, vec2(game.player.pos.x, game.player.pos.y - 28),
-             t("roguelite_level_up") & " " & $game.player.rogueliteLevel,
-             Color(r: 120, g: 255, b: 180, a: 255))
 
 proc checkPendingLevelDraft(game: Game) {.moddable.} =
   ## Opens one queued level-up draft, but only in normal play (gsPlaying), never
@@ -253,13 +265,306 @@ proc beginDraftResume*(game: var Game) {.moddable.} =
   const ResumeInvuln = 0.9'f32
   game.draftResumeTimer = 0.9'f32
   activateSlowMo(game.dopamine.slowMotion, smtResume)
-  game.player.invincibilityTimer = max(game.player.invincibilityTimer, ResumeInvuln)
-  # Two concentric rings: the outer one sweeps wide enough to sit clear of the
-  # crowd, the inner one lands on the player themselves.
-  spawnShockwaveRing(game, game.player.pos, 150.0'f32,
-                     Color(r: 120, g: 255, b: 210, a: 255))
-  spawnShockwaveRing(game, game.player.pos, 62.0'f32,
-                     Color(r: 210, g: 255, b: 240, a: 255))
+  for p in game.livingPlayers:
+    p.invincibilityTimer = max(p.invincibilityTimer, ResumeInvuln)
+    # Two concentric rings: the outer one sweeps wide enough to sit clear of the
+    # crowd, the inner one lands on the player themselves.
+    spawnShockwaveRing(game, p.pos, 150.0'f32,
+                       Color(r: 120, g: 255, b: 210, a: 255))
+    spawnShockwaveRing(game, p.pos, 62.0'f32,
+                       Color(r: 210, g: 255, b: 240, a: 255))
+
+# ---------------------------------------------------------------------------
+# Leaving the run's menus: the draft, the shop, roguelite floor select. One
+# player (single player) leaves them straight from main.nim's screens; a co-op
+# team leaves once every player is done (the team modals below).
+
+proc continueAfterDraft*(game: var Game, legendaryRound: bool) {.moddable.} =
+  ## Route out of the draft screen. Classic modes visit the between-wave
+  ## shop; the dungeon returns to the room (or the next floor select after a
+  ## floor boss). `legendaryRound`: the draft offered legendaries.
+  game.cameFromPowerUpSelect = true
+  if game.mode == gmRoguelite and game.rogueliteRun != nil:
+    if game.rogueliteRun.pendingFloorSelect:
+      if game.cheatRogueliteDirectFloorSelect:
+        # Cheat "Skip Floor": the boss-room exit portal may be unreachable
+        # (the cheat can fire from any room), so jump straight to floor
+        # select, mirroring what walking into the portal would do.
+        game.cheatRogueliteDirectFloorSelect = false
+        generateThemeChoices(game.rogueliteRun)
+        game.selectedRogueliteTheme = 0
+        game.state = gsRogueliteFloorSelect
+      else:
+        # Floor boss is down: drop the player back into the cleared boss room
+        # with the exit portal open. The descent only happens once they walk
+        # into it (updateDungeon), not automatically.
+        spawnRogueliteExitPortal(game)
+        game.state = gsPlaying
+    else:
+      game.cheatRogueliteDirectFloorSelect = false
+      game.state = gsPlaying
+      beginDraftResume(game)
+  elif game.levelDraftActive or isTimeSurvivalMode(game.mode):
+    # Mid-run XP level-up draft (survival or wave mode): resume into the
+    # same battlefield, not the shop. The shop stays reserved for wave
+    # mode's wave-boundary / post-boss draft below; survival has no shop
+    # at all (its bosses drop Data Caches), so its post-boss draft
+    # returns to the fight too.
+    #
+    # This is the disorienting exit -- the fight is still running and the
+    # player has been looking at a menu -- so it gets the re-entry beat
+    # (time ramp + i-frames + a locate-me pulse). Exits to the shop or to
+    # floor select do not need it: nothing is chasing the player there.
+    let survivalBossReward = isTimeSurvivalMode(game.mode) and
+                             legendaryRound and not game.levelDraftActive
+    game.levelDraftActive = false
+    game.state = gsPlaying
+    beginDraftResume(game)
+    if survivalBossReward:
+      # Survival's restore point: a boss has just closed its phase and its
+      # reward is installed, so a Continue picks the run up right here,
+      # Kernel cache still on the floor. Written after the state change,
+      # so the save does not reopen this draft. Overtime (the final boss's
+      # draft onward) writes nothing: saveBlockCheckpoint refuses a won run.
+      saveBlockCheckpoint(game)
+  else:
+    game.state = gsShop
+    game.shopSidebarScroll = 0
+
+proc closeShop*(game: var Game) {.moddable.} =
+  ## Leave the shop: on to the next wave (after a short countdown), or, in the
+  ## dungeon, where the shop is a room, straight back into it.
+  game.cameFromPowerUpSelect = false
+  if game.mode == gmRoguelite:
+    game.state = gsPlaying
+  else:
+    game.state = gsCountdown
+    game.countdownTimer = 0.5
+
+proc startSelectedTheme*(game: var Game) {.moddable.} =
+  ## Roguelite floor select: enter the sector of the selected card.
+  selectFloorTheme(game, game.selectedRogueliteTheme)
+  game.state = gsCountdown
+  game.countdownTimer = 0.5
+  # The sector's restore point: the whole build as it enters the sector,
+  # after the last guardian's reward and this theme pick, so a Continue
+  # replays this same sector with nothing lost. The sector layout is
+  # rebuilt from the run seed. No-op on a profile without a budget.
+  saveBlockCheckpoint(game)
+  playSound(stMenuSelect)
+
+# What this machine's player does on those screens. Single player: it happens.
+# Co-op: it is submitted to the host, which applies it for that player
+# (applyCoopAction) and moves on once the whole team is done.
+
+proc pickDraftCard*(game: var Game, index: int) {.moddable.} =
+  ## Take card `index` of the draft (-1: continue without one).
+  if not game.coop.isNil:
+    submitCoopAction(cakPick, index.int32)
+    return
+  let legendary = game.powerUpChoices[0].rarity == prLegendary
+  if index in 0..2:
+    installPowerUp(game, game.powerUpChoices[index])
+  continueAfterDraft(game, legendary)
+
+proc rerollDraft*(game: var Game): bool {.discardable, moddable.} =
+  ## Reroll the draft's cards for credits. False: not enough credits (or, in
+  ## co-op, the reroll went to the host, whose new roll arrives shortly).
+  if not game.coop.isNil:
+    if game.player.coins >= game.localSeat.rerollCost:
+      submitCoopAction(cakReroll)
+    return false
+  let coinsPreReroll = game.player.coins
+  result = attemptRerollPowerUps(game)
+  if result:
+    recordRerollSpent(coinsPreReroll - game.player.coins)
+
+proc buyFromShop*(game: var Game, row: int) {.moddable.} =
+  ## Buy shop row `row` with this machine's player's credits.
+  if not game.coop.isNil:
+    submitCoopAction(cakBuy, row.int32)
+    return
+  buyShopItem(game, row)
+
+proc leaveShop*(game: var Game) {.moddable.} =
+  ## Done shopping.
+  if not game.coop.isNil:
+    submitCoopAction(cakDone)
+    return
+  closeShop(game)
+
+proc chooseFloor*(game: var Game, card: int) {.moddable.} =
+  ## Roguelite floor select: go into card `card`'s sector (co-op: vote for it).
+  if not game.coop.isNil:
+    submitCoopAction(cakVote, card.int32)
+    return
+  game.selectedRogueliteTheme = card
+  startSelectedTheme(game)
+
+# ---------------------------------------------------------------------------
+# Co-op team modals (the host runs them). A draft, the shop, a Data Cache's
+# reveal and roguelite floor select pause the whole team; every player makes
+# their own choices on their own screen at once (CoopState.seats), and the run
+# goes on once all are done -- or, after CoopModalTimeout, with the defaults
+# for whoever is still deciding.
+
+
+proc loadShopCounts*(game: Game, p: Player) {.moddable.} =
+  ## Co-op: show `p`'s own purchases in the shop (prices rise with them).
+  for i in 0 ..< game.shopItems.len:
+    game.shopItems[i].bought = p.shopBought[i]
+  game.modShopBought = p.modShopBought
+
+proc storeShopCounts(game: Game, p: Player) =
+  for i in 0 ..< game.shopItems.len:
+    p.shopBought[i] = game.shopItems[i].bought
+  p.modShopBought = game.modShopBought
+
+proc syncLocalDraftView*(game: var Game) {.moddable.} =
+  ## Co-op: show this machine's player's own roll on the draft screen, and
+  ## restart the reel whenever they get a new one (a reroll).
+  if game.coop.isNil: return
+  let seat = game.localSeat
+  game.rerollCost = seat.rerollCost
+  if seat.rollSeq != localRollSeq:
+    localRollSeq = seat.rollSeq
+    game.powerUpChoices = seat.choices
+    game.selectedPowerUp = 0
+    initPowerUpRollAnimation(game)
+
+proc openTeamModal(game: var Game, kind: CoopModalKind) =
+  ## The run just reached a modal: give every player their part in it.
+  let coop = game.coop
+  coop.modal = kind
+  coop.modalTimer = CoopModalTimeout
+  for p in game.players:
+    let seat = addr coop.seats[p.slot]
+    seat.ready = p.eliminated   # an eliminated player has nothing to decide
+    seat.vote = -1
+  case kind
+  of cmkDraft:
+    let legendary = game.powerUpChoices[0].rarity == prLegendary
+    coop.modalLegendary = legendary
+    for p in game.players:
+      let seat = addr coop.seats[p.slot]
+      withPlayer(game, p):
+        if p.slot == localSlot:
+          # The roll this machine's draft screen already shows.
+          seat.choices = game.powerUpChoices
+        else:
+          seat.choices = generatePowerUpChoices(p, legendary, AllPowerFamilies, game.mode)
+        seat.rerollCost = firstRerollCost(p)
+        seat.exhausted = isPowerUpPoolExhausted(p, legendary, AllPowerFamilies, game.mode)
+      inc seat.rollSeq
+    localRollSeq = coop.seats[localSlot].rollSeq
+  of cmkShop:
+    loadShopCounts(game, game.playerOfSlot(localSlot))
+  of cmkCache, cmkFloorVote, cmkNone:
+    discard
+
+proc applyCoopAction*(game: var Game, slot: int32, a: CoopAction) {.moddable.} =
+  ## Host: what player `slot` did in the open team modal, for them.
+  let coop = game.coop
+  if coop.isNil or slot < 0 or slot >= game.players.len: return
+  let p = game.players[slot]
+  let seat = addr coop.seats[slot]
+  if seat.ready: return
+  case a.kind
+  of cakPick:
+    if coop.modal != cmkDraft: return
+    if a.value in 0'i32..2'i32 and not seat.exhausted:
+      withPlayer(game, p):
+        installPowerUp(game, seat.choices[a.value])
+    seat.ready = true
+  of cakReroll:
+    if coop.modal != cmkDraft or seat.exhausted or p.coins < seat.rerollCost: return
+    withPlayer(game, p):
+      let cost = seat.rerollCost
+      p.coins -= cost
+      recordRerollSpent(cost)
+      seat.choices = generatePowerUpChoices(p, coop.modalLegendary, AllPowerFamilies, game.mode)
+      seat.rerollCost = rerollCostAfter(p, cost)
+    inc seat.rollSeq
+  of cakBuy:
+    if coop.modal != cmkShop: return
+    withPlayer(game, p):
+      loadShopCounts(game, p)
+      buyShopItem(game, a.value)
+      storeShopCounts(game, p)
+    loadShopCounts(game, game.playerOfSlot(localSlot))
+  of cakDone:
+    if coop.modal in {cmkShop, cmkCache}:
+      seat.ready = true
+  of cakVote:
+    if coop.modal != cmkFloorVote: return
+    let cards = if isFinalDungeonFloor(game.rogueliteRun): 1 else: 3
+    seat.vote = clamp(a.value, 0'i32, int32(cards - 1))
+    seat.ready = true
+
+proc decideForUndecided(game: var Game) =
+  ## Time is up: the first card, done shopping, reveal closed, the first floor.
+  for p in game.players:
+    if game.coop.seats[p.slot].ready: continue
+    let action = case game.coop.modal
+      of cmkDraft: CoopAction(kind: cakPick, value: 0)
+      of cmkShop, cmkCache: CoopAction(kind: cakDone)
+      of cmkFloorVote: CoopAction(kind: cakVote, value: 0)
+      of cmkNone: continue
+    applyCoopAction(game, p.slot, action)
+
+proc finishTeamModal(game: var Game) =
+  ## Everyone is done: the run moves on, as it does for one player.
+  let coop = game.coop
+  let kind = coop.modal
+  coop.modal = cmkNone
+  case kind
+  of cmkDraft:
+    continueAfterDraft(game, coop.modalLegendary)
+  of cmkShop:
+    closeShop(game)
+  of cmkCache:
+    game.survival.reveal.active = false
+    beginDraftResume(game)
+  of cmkFloorVote:
+    # Most votes wins; a tie goes to the host's card.
+    var tally: array[3, int]
+    for p in game.players:
+      let v = coop.seats[p.slot].vote
+      if v in 0'i32..2'i32: inc tally[v]
+    var best = max(0, coop.seats[0].vote.int)
+    for c in 0..2:
+      if tally[c] > tally[best]: best = c
+    game.selectedRogueliteTheme = best
+    startSelectedTheme(game)
+  of cmkNone:
+    discard
+
+proc updateCoopModal*(game: var Game, dt: float32) {.moddable.} =
+  ## Host, every frame of a co-op run: open the team modal when the run
+  ## reaches one, apply the players' actions, and move on once all are done.
+  let coop = game.coop
+  if coop.isNil or not coopHost():
+    coopActionQueue.setLen(0)
+    return
+  let want = case game.state
+    of gsPowerUpSelect: cmkDraft
+    of gsShop: cmkShop
+    of gsRogueliteFloorSelect: cmkFloorVote
+    else: (if coop.modal == cmkCache: cmkCache else: cmkNone)
+  if want != coop.modal:
+    if want == cmkNone: coop.modal = cmkNone   # left another way (quit, a mod)
+    else: openTeamModal(game, want)
+  let queued = coopActionQueue
+  coopActionQueue.setLen(0)
+  for (slot, a) in queued:
+    applyCoopAction(game, slot, a)
+  if coop.modal == cmkNone: return
+  coop.modalTimer -= dt
+  if coop.modalTimer <= 0:
+    decideForUndecided(game)
+  for p in game.players:
+    if not coop.seats[p.slot].ready: return
+  finishTeamModal(game)
 
 proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game {.moddable.} =
   let defaultMode = gmWaveBased  # Default to wave-based mode
@@ -420,6 +725,25 @@ proc addCoopPlayer*(game: Game, nickname: string, skin = 0, bulletSkin = 0, shap
     game.coop = CoopState()
   game.coop.nicknames[slot] = nickname
 
+proc beginCoopRun*(game: Game) {.moddable.} =
+  ## Once a co-op run's players are seated: the team's life pool and the
+  ## enemies' scaling with the team's size. The pool is the profile's
+  ## restore-point budget for the mode plus one per extra player (an unlimited
+  ## budget stays unlimited; the sandbox never runs out).
+  if game.coop.isNil:
+    game.coop = CoopState()
+  coopPlayerCount = game.players.len
+  # Every player's own run statistics (their kills, damage, pickups...), the
+  # current record while they are the active player (withPlayer).
+  for s in slotRunStats.mitems: s = nil
+  for p in game.players:
+    slotRunStats[p.slot] = if p.slot == localSlot and not currentRunStats.isNil: currentRunStats
+                           else: newRunStatisticsFor(game.mode)
+  let base = if isSandboxMode(game.mode): UnlimitedLives
+             else: difficultyMaxLives(game.mode, game.modMode)
+  game.coop.teamLives = if base == UnlimitedLives: UnlimitedLives
+                        else: max(0, base) + game.players.len - 1
+
 # Waves
 proc startWave*(game: Game) {.moddable.} =
   # Death-surviving block checkpoint, written at the START of each boss block
@@ -483,41 +807,44 @@ proc startWave*(game: Game) {.moddable.} =
 
   # Once per wave number: a checkpoint written mid-wave (level drafts) already
   # holds this wave's scaled stats, and resuming it restarts the wave here.
-  if game.waveScalingApplied != game.currentWave:
-    game.waveScalingApplied = game.currentWave
-    # Apply multiplicative scaling to current stats (preserves all upgrades)
-    game.player.maxHp *= waveScaling
-    # The free share scales with it, so surviving waves never converts into
-    # Juggernaut damage on its own (see Player.baselineMaxHp).
-    game.player.baselineMaxHp *= waveScaling
-    game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)  # Scale current HP but cap at maxHp
-    game.player.damage *= waveScaling
-    game.player.speed *= waveScaling
-    game.player.baseSpeed *= waveScaling
-    game.player.bulletSpeed = multiplyBulletSpeedDiminished(game.player.bulletSpeed, waveScaling)
-    # Fire rate gets faster (lower number = faster), so we divide instead of multiply
-    game.player.fireRate /= waveScaling
+  let scaleThisWave = game.waveScalingApplied != game.currentWave
+  game.waveScalingApplied = game.currentWave
+  for p in game.players:   # (every player of a co-op run grows and re-arms)
+    withPlayer(game, p):
+      if scaleThisWave:
+        # Apply multiplicative scaling to current stats (preserves all upgrades)
+        game.player.maxHp *= waveScaling
+        # The free share scales with it, so surviving waves never converts into
+        # Juggernaut damage on its own (see Player.baselineMaxHp).
+        game.player.baselineMaxHp *= waveScaling
+        game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)  # Scale current HP but cap at maxHp
+        game.player.damage *= waveScaling
+        game.player.speed *= waveScaling
+        game.player.baseSpeed *= waveScaling
+        game.player.bulletSpeed = multiplyBulletSpeedDiminished(game.player.bulletSpeed, waveScaling)
+        # Fire rate gets faster (lower number = faster), so we divide instead of multiply
+        game.player.fireRate /= waveScaling
 
-  # Reset all active ability cooldowns for new wave
-  game.player.timeWarpUsesThisWave = 0
-  game.player.timeWarpCooldown = 0
-  game.player.phaseShiftCooldown = 0
-  game.player.bloodPactCooldown = 0
-  game.player.conduitCooldown = 0
-  game.player.aftershockCooldown = 0
-  game.player.novaCooldown = 0
-  # Release any frozen Nova bullets before resetting
-  if game.player.novaActive:
-    for bullet in game.bullets:
-      if bullet.isFrozenByNova and bullet.fromPlayer:
-        bullet.vel = bullet.vel * 1.5
-        bullet.isFrozenByNova = false
-        bullet.isFromNova = true  # Mark for damage tracking
-    game.player.novaActive = false
-    game.player.novaFreezeTimer = 0
-  # Reset Celestial Veil charges for new wave
-  if hasPowerUp(game.player, puCelestialVeil):
-    game.player.celestialVeilCharges = 2
+      # Reset all active ability cooldowns for new wave
+      game.player.timeWarpUsesThisWave = 0
+      game.player.timeWarpCooldown = 0
+      game.player.phaseShiftCooldown = 0
+      game.player.bloodPactCooldown = 0
+      game.player.conduitCooldown = 0
+      game.player.aftershockCooldown = 0
+      game.player.novaCooldown = 0
+      # Release any frozen Nova bullets before resetting
+      if game.player.novaActive:
+        for bullet in game.bullets:
+          if bullet.isFrozenByNova and bullet.fromPlayer and ownerSlot(bullet) == game.player.slot:
+            bullet.vel = bullet.vel * 1.5
+            bullet.isFrozenByNova = false
+            bullet.isFromNova = true  # Mark for damage tracking
+        game.player.novaActive = false
+        game.player.novaFreezeTimer = 0
+      # Reset Celestial Veil charges for new wave
+      if hasPowerUp(game.player, puCelestialVeil):
+        game.player.celestialVeilCharges = 2
   modWaveStart(game)
 
 proc spawnWaveEnemies(game: Game, count: int) {.moddable.} =
@@ -882,6 +1209,11 @@ proc completeBossWave(game: Game) {.moddable.} =
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
     # toggled off in the shop's SECRET tab.
+    if not game.cheatsUsed:   # (a co-op team's every player wins it)
+      pushTeamProfileEvent(game, ProfileEvent(kind: pekUnlock, text: "tophat"))
+      if not game.runHadDeath:
+        pushTeamProfileEvent(game, ProfileEvent(kind: pekAdvancement,
+                                                text: "survival_flawless_kernel"))   # FlawlessWaveAdvancementId
     if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.kernelTophatUnlocked:
       globalSettings.kernelTophatUnlocked = true
       globalSettings.kernelTophatEquipped = true
@@ -902,6 +1234,8 @@ proc completeBossWave(game: Game) {.moddable.} =
 
   # Unlock Roguelite when the wave-20 boss (custom boss number 4) is defeated
   elif getCustomBossNumber(completedWave) == 4:
+    if not game.cheatsUsed:
+      pushTeamProfileEvent(game, ProfileEvent(kind: pekUnlock, text: "roguelite"))
     if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
       globalSettings.rogueliteUnlocked = true
       discard saveSettings(globalSettings)
@@ -1139,31 +1473,44 @@ proc currentBossArenaWave(game: Game): int =
   game.currentWave
 
 proc updateBossArenaGameplay(game: var Game, dt: float32) =
-  let arenaEvent = updateBossArenaField(
-    game.osBackground,
-    dt,
-    game.player.pos,
-    game.player.radius,
-    game.screenWidth,
-    game.screenHeight,
-    game.bossWaveManager.isBossActive(),
-    currentBossArenaWave(game)
-  )
+  ## The boss-arena ring field moves once a frame, and every player standing on
+  ## it gets their band's effect: the boon's bonus, or the hazard's damage.
+  var fieldMoved = false
+  for p in game.livingPlayers:
+    withPlayer(game, p):
+      let field = arenaField(game.osBackground)
+      loadArenaSeat(game.osBackground, game.player.arena)
+      let arenaEvent = updateBossArenaField(
+        game.osBackground,
+        dt,
+        game.player.pos,
+        game.player.radius,
+        game.screenWidth,
+        game.screenHeight,
+        game.bossWaveManager.isBossActive(),
+        currentBossArenaWave(game)
+      )
+      if fieldMoved:
+        # The field already advanced this frame, on the first player's turn.
+        loadArenaField(game.osBackground, field)
+      fieldMoved = true
+      storeArenaSeat(game.osBackground, game.player.arena)
 
-  if arenaEvent.damageTriggered and game.state == gsPlaying:
-    let playerDied = takeDamage(game.player, arenaEvent.damage)
-    trackDamageAvoided(game)
-    let actualDamage = game.player.lastDamageTaken
+      if arenaEvent.damageTriggered and game.state == gsPlaying:
+        let playerDied = takeDamage(game.player, arenaEvent.damage)
+        trackDamageAvoided(game)
+        let actualDamage = game.player.lastDamageTaken
 
-    if actualDamage > 0.001:
-      trackPlayerDamage(game, etEnvironment)
-      game.showPlayerDamageTaken(dtArcane)
-      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                           Color(r: 255, g: 65, b: 55, a: 220), 8)
-      playSound(stPlayerHit, 0.38)
+        if actualDamage > 0.001:
+          trackPlayerDamage(game, etEnvironment)
+          game.showPlayerDamageTaken(dtArcane)
+          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                               Color(r: 255, g: 65, b: 55, a: 220), 8)
+          playSound(stPlayerHit, 0.38)
 
-    if playerDied:
-      beginPlayerDeathSequence(game, dcHazard)
+        if playerDied:
+          beginPlayerDeathSequence(game, dcHazard)
+  game.bossArena = arenaField(game.osBackground)
 
 proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
   var i = 0
@@ -1221,7 +1568,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
       if not bossAlive:
         w.lifetime = 0
       else:
-        var chaseDir = game.player.pos - w.pos
+        var chaseDir = game.warningQuarry(w).pos - w.pos   # whoever it was set on
         if chaseDir.length() > 1.0'f32:
           chaseDir = chaseDir.normalize()
           w.pos = w.pos + chaseDir * (FissureChaseSpeed * dt)
@@ -1397,14 +1744,16 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                                Color(r: 255, g: 255, b: 190, a: 255), 30)
           addShake(game.dopamine.screenShake, siMedium)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
-           distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
-          if takeDamage(game.player, w.bulletDamage):
-            beginPlayerDeathSequence(game, dcHazard)
-          trackDamageAvoided(game)
-          trackPlayerDamage(game, etCircle)
-          game.showPlayerDamageTaken(dtLightning)
-          w.lasersCreated = true
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if not w.zoneHit(game.player.slot) and game.player.invincibilityTimer <= 0 and
+               distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
+              if takeDamage(game.player, w.bulletDamage):
+                beginPlayerDeathSequence(game, dcHazard)
+              trackDamageAvoided(game)
+              trackPlayerDamage(game, etCircle)
+              game.showPlayerDamageTaken(dtLightning)
+              w.markZoneHit(game.player.slot)
 
     # ARC LATTICE: telegraph expires -> a lightning wall segment goes live.
     if game.attackWarnings[i].attackType == awtArcBeam:
@@ -1420,15 +1769,17 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
           w.bulletsCreated = true
         # Lasers re-tick every LaserHitInterval while the player stays in the
         # beam, gated by the shared cooldown rather than a one-shot flag.
-        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0 and
-           pointSegmentDistance(game.player.pos, w.pos, w.targetPos) <=
-             w.laserLength + game.player.radius:
-          if takeDamage(game.player, w.bulletDamage):
-            beginPlayerDeathSequence(game, dcHazard)
-          trackDamageAvoided(game)
-          trackPlayerDamage(game, etCircle)
-          game.showPlayerDamageTaken(dtLightning)
-          game.player.laserHitCooldown = LaserHitInterval
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0 and
+               pointSegmentDistance(game.player.pos, w.pos, w.targetPos) <=
+                 w.laserLength + game.player.radius:
+              if takeDamage(game.player, w.bulletDamage):
+                beginPlayerDeathSequence(game, dcHazard)
+              trackDamageAvoided(game)
+              trackPlayerDamage(game, etCircle)
+              game.showPlayerDamageTaken(dtLightning)
+              game.player.laserHitCooldown = LaserHitInterval
 
     # VOID RIFT (Void Dancer): telegraph expires -> the dimensional tear collapses,
     # dealing zone damage at the rift and releasing a slow radial spray of void
@@ -1462,14 +1813,16 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                                Color(r: 160, g: 50, b: 230, a: 255), 26)
           addShake(game.dopamine.screenShake, siMedium)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
-           distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
-          if takeDamage(game.player, w.bulletDamage):
-            beginPlayerDeathSequence(game, dcHazard)
-          trackDamageAvoided(game)
-          trackPlayerDamage(game, etCircle)
-          game.showPlayerDamageTaken(dtArcane)
-          w.lasersCreated = true
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if not w.zoneHit(game.player.slot) and game.player.invincibilityTimer <= 0 and
+               distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
+              if takeDamage(game.player, w.bulletDamage):
+                beginPlayerDeathSequence(game, dcHazard)
+              trackDamageAvoided(game)
+              trackPlayerDamage(game, etCircle)
+              game.showPlayerDamageTaken(dtArcane)
+              w.markZoneHit(game.player.slot)
 
     # RICOCHET LASER (boss 4 final phase): telegraph expires -> the beam-front
     # races along the bounce route (RicochetLaserSweep). The swept-so-far portion
@@ -1485,29 +1838,31 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                                Color(r: 200, g: 245, b: 255, a: 255), 14)
           addShake(game.dopamine.screenShake, siMedium)
           w.bulletsCreated = true
-        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
-          # Only test the portion the beam-front has actually reached so far.
-          let activeElapsed = RicochetLaserActive - w.lifetime
-          let sweepFrac = clamp(activeElapsed / RicochetLaserSweep, 0.0'f32, 1.0'f32)
-          let frontDist = sweepFrac * polylineLength(w.ricochetPath)
-          let swept = ricochetSweptPath(w.ricochetPath, frontDist)
-          var hit = false
-          for s in 0 ..< swept.len - 1:
-            if pointSegmentDistance(game.player.pos, swept[s], swept[s + 1]) <=
-               w.laserLength + game.player.radius:
-              hit = true
-              break
-          if hit:
-            if takeDamage(game.player, w.bulletDamage):
-              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
-            trackDamageAvoided(game)
-            trackPlayerDamage(game, w.enemyType)
-            game.showPlayerDamageTaken(dtLaser)
-            # Impact burst where the beam caught the player.
-            spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                                 Color(r: 230, g: 250, b: 255, a: 255), 20)
-            addShake(game.dopamine.screenShake, siLarge)
-            game.player.laserHitCooldown = LaserHitInterval
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
+              # Only test the portion the beam-front has actually reached so far.
+              let activeElapsed = RicochetLaserActive - w.lifetime
+              let sweepFrac = clamp(activeElapsed / RicochetLaserSweep, 0.0'f32, 1.0'f32)
+              let frontDist = sweepFrac * polylineLength(w.ricochetPath)
+              let swept = ricochetSweptPath(w.ricochetPath, frontDist)
+              var hit = false
+              for s in 0 ..< swept.len - 1:
+                if pointSegmentDistance(game.player.pos, swept[s], swept[s + 1]) <=
+                   w.laserLength + game.player.radius:
+                  hit = true
+                  break
+              if hit:
+                if takeDamage(game.player, w.bulletDamage):
+                  beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+                trackDamageAvoided(game)
+                trackPlayerDamage(game, w.enemyType)
+                game.showPlayerDamageTaken(dtLaser)
+                # Impact burst where the beam caught the player.
+                spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                                     Color(r: 230, g: 250, b: 255, a: 255), 20)
+                addShake(game.dopamine.screenShake, siLarge)
+                game.player.laserHitCooldown = LaserHitInterval
 
     # ORBITAL SWEEP (Orbital Commander): while active, a screen-spanning energy
     # wall travels across the arena (its centre resolved per-frame by
@@ -1524,26 +1879,28 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                                Color(r: 190, g: 150, b: 255, a: 255), 16)
           addShake(game.dopamine.screenShake, siSmall)
           w.bulletsCreated = true
-        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
-          let c = orbitalSweepCenter(w)
-          let ang = w.bulletSpreadAngle
-          let v = vec2(cos(ang), sin(ang))    # travel direction
-          let u = vec2(-sin(ang), cos(ang))   # along the wall
-          let rel = game.player.pos - c
-          let dAcross = rel.x * v.x + rel.y * v.y
-          let dAlong = rel.x * u.x + rel.y * u.y
-          let gapOffset = if w.laserAngles.len > 0: w.laserAngles[0] else: 0.0'f32
-          if abs(dAcross) <= w.laserLength + game.player.radius and
-             abs(dAlong) <= w.bulletSpeed and
-             abs(dAlong - gapOffset) > w.bulletRadius:
-            if takeDamage(game.player, w.bulletDamage):
-              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
-            trackDamageAvoided(game)
-            trackPlayerDamage(game, etCircle)
-            game.showPlayerDamageTaken(dtLaser)
-            spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                                 Color(r: 200, g: 160, b: 255, a: 255), 14)
-            game.player.laserHitCooldown = LaserHitInterval
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
+              let c = orbitalSweepCenter(w)
+              let ang = w.bulletSpreadAngle
+              let v = vec2(cos(ang), sin(ang))    # travel direction
+              let u = vec2(-sin(ang), cos(ang))   # along the wall
+              let rel = game.player.pos - c
+              let dAcross = rel.x * v.x + rel.y * v.y
+              let dAlong = rel.x * u.x + rel.y * u.y
+              let gapOffset = if w.laserAngles.len > 0: w.laserAngles[0] else: 0.0'f32
+              if abs(dAcross) <= w.laserLength + game.player.radius and
+                 abs(dAlong) <= w.bulletSpeed and
+                 abs(dAlong - gapOffset) > w.bulletRadius:
+                if takeDamage(game.player, w.bulletDamage):
+                  beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+                trackDamageAvoided(game)
+                trackPlayerDamage(game, etCircle)
+                game.showPlayerDamageTaken(dtLaser)
+                spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                                     Color(r: 200, g: 160, b: 255, a: 255), 14)
+                game.player.laserHitCooldown = LaserHitInterval
 
     # SEISMIC FISSURE (Berserker Juggernaut): each step of the marching crack
     # pops when ITS lifetime enters the active window - the per-step stagger is
@@ -1557,14 +1914,16 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                                Color(r: 255, g: 140, b: 50, a: 255), 18)
           addShake(game.dopamine.screenShake, siSmall)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
-           distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
-          if takeDamage(game.player, w.bulletDamage):
-            beginPlayerDeathSequence(game, dcHazard)
-          trackDamageAvoided(game)
-          trackPlayerDamage(game, etCircle)
-          game.showPlayerDamageTaken(dtExplosion)
-          w.lasersCreated = true
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if not w.zoneHit(game.player.slot) and game.player.invincibilityTimer <= 0 and
+               distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
+              if takeDamage(game.player, w.bulletDamage):
+                beginPlayerDeathSequence(game, dcHazard)
+              trackDamageAvoided(game)
+              trackPlayerDamage(game, etCircle)
+              game.showPlayerDamageTaken(dtExplosion)
+              w.markZoneHit(game.player.slot)
 
     # PRISM REFRACTION (Prism Architect): each star (primary AND every cascade
     # mini, staggered) goes lethal for a short flash. Geometry lives in
@@ -1582,24 +1941,26 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                    if w.bulletCount == 0: siLarge else: siSmall,
                    Color(r: 235, g: 210, b: 255, a: 255))
           w.bulletsCreated = true
-        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
-          let focus = w.ricochetPath[1]
-          var hit = w.bulletCount == 0 and
-                    pointSegmentDistance(game.player.pos, w.ricochetPath[0], focus) <=
-                    w.laserLength + game.player.radius
-          if not hit:
-            for k in 2 ..< w.ricochetPath.len:
-              if pointSegmentDistance(game.player.pos, focus, w.ricochetPath[k]) <=
-                 w.laserLength + game.player.radius:
-                hit = true
-                break
-          if hit:
-            if takeDamage(game.player, w.bulletDamage):
-              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
-            trackDamageAvoided(game)
-            trackPlayerDamage(game, etCircle)
-            game.showPlayerDamageTaken(dtLaser)
-            game.player.laserHitCooldown = LaserHitInterval
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
+              let focus = w.ricochetPath[1]
+              var hit = w.bulletCount == 0 and
+                        pointSegmentDistance(game.player.pos, w.ricochetPath[0], focus) <=
+                        w.laserLength + game.player.radius
+              if not hit:
+                for k in 2 ..< w.ricochetPath.len:
+                  if pointSegmentDistance(game.player.pos, focus, w.ricochetPath[k]) <=
+                     w.laserLength + game.player.radius:
+                    hit = true
+                    break
+              if hit:
+                if takeDamage(game.player, w.bulletDamage):
+                  beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+                trackDamageAvoided(game)
+                trackPlayerDamage(game, etCircle)
+                game.showPlayerDamageTaken(dtLaser)
+                game.player.laserHitCooldown = LaserHitInterval
 
     # CLOCK SWEEP (Timekeeper): while active the hands rotate around the frozen
     # pivot (angles recomputed from lifetime via clockSweepHandAngle, the same
@@ -1646,20 +2007,22 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
           spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y,
                                Color(r: 255, g: 210, b: 130, a: 255), 24)
           addShake(game.dopamine.screenShake, siMedium)
-        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
-          for hand in 0 ..< max(1, w.laserCount):
-            let ang = clockSweepHandAngle(w, hand)
-            let tip = vec2(w.pos.x + cos(ang) * w.bulletRadius,
-                                  w.pos.y + sin(ang) * w.bulletRadius)
-            if pointSegmentDistance(game.player.pos, w.pos, tip) <=
-               w.laserLength + game.player.radius:
-              if takeDamage(game.player, w.bulletDamage):
-                beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
-              trackDamageAvoided(game)
-              trackPlayerDamage(game, etCircle)
-              game.showPlayerDamageTaken(dtFrost)
-              game.player.laserHitCooldown = LaserHitInterval
-              break
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
+              for hand in 0 ..< max(1, w.laserCount):
+                let ang = clockSweepHandAngle(w, hand)
+                let tip = vec2(w.pos.x + cos(ang) * w.bulletRadius,
+                                      w.pos.y + sin(ang) * w.bulletRadius)
+                if pointSegmentDistance(game.player.pos, w.pos, tip) <=
+                   w.laserLength + game.player.radius:
+                  if takeDamage(game.player, w.bulletDamage):
+                    beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+                  trackDamageAvoided(game)
+                  trackPlayerDamage(game, etCircle)
+                  game.showPlayerDamageTaken(dtFrost)
+                  game.player.laserHitCooldown = LaserHitInterval
+                  break
 
     # CHAOS WEAVE (Chaos Weaver): threads snap taut and lethal in stitch order
     # (staggered lifetimes); hit test walks the polyline segments, one hit per
@@ -1698,20 +2061,22 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                                  Color(r: 255, g: 90, b: 255, a: 255), 4)
           addShake(game.dopamine.screenShake, siSmall)
           w.bulletsCreated = true
-        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
-          var hit = false
-          for s in 0 ..< w.ricochetPath.len - 1:
-            if pointSegmentDistance(game.player.pos, w.ricochetPath[s], w.ricochetPath[s + 1]) <=
-               w.laserLength + game.player.radius:
-              hit = true
-              break
-          if hit:
-            if takeDamage(game.player, w.bulletDamage):
-              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
-            trackDamageAvoided(game)
-            trackPlayerDamage(game, etCircle)
-            game.showPlayerDamageTaken(dtArcane)
-            game.player.laserHitCooldown = LaserHitInterval
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
+              var hit = false
+              for s in 0 ..< w.ricochetPath.len - 1:
+                if pointSegmentDistance(game.player.pos, w.ricochetPath[s], w.ricochetPath[s + 1]) <=
+                   w.laserLength + game.player.radius:
+                  hit = true
+                  break
+              if hit:
+                if takeDamage(game.player, w.bulletDamage):
+                  beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+                trackDamageAvoided(game)
+                trackPlayerDamage(game, etCircle)
+                game.showPlayerDamageTaken(dtArcane)
+                game.player.laserHitCooldown = LaserHitInterval
 
     # OMEGA JUDGEMENT (Omega Entity): every heartbeat three quadrants erupt
     # and the gold shelter hops (lifetimes encode the beats, like the
@@ -1759,15 +2124,17 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
                 colorOverride = popCol))
             addShake(game.dopamine.screenShake, siLarge)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
-           abs(game.player.pos.x - w.pos.x) <= w.targetPos.x + game.player.radius and
-           abs(game.player.pos.y - w.pos.y) <= w.targetPos.y + game.player.radius:
-          if takeDamage(game.player, w.bulletDamage):
-            beginPlayerDeathSequence(game, dcHazard)
-          trackDamageAvoided(game)
-          trackPlayerDamage(game, etCircle)
-          game.showPlayerDamageTaken(dtFire)
-          w.lasersCreated = true
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            if not w.zoneHit(game.player.slot) and game.player.invincibilityTimer <= 0 and
+               abs(game.player.pos.x - w.pos.x) <= w.targetPos.x + game.player.radius and
+               abs(game.player.pos.y - w.pos.y) <= w.targetPos.y + game.player.radius:
+              if takeDamage(game.player, w.bulletDamage):
+                beginPlayerDeathSequence(game, dcHazard)
+              trackDamageAvoided(game)
+              trackPlayerDamage(game, etCircle)
+              game.showPlayerDamageTaken(dtFire)
+              w.markZoneHit(game.player.slot)
 
     if game.attackWarnings[i].lifetime <= 0:
       game.attackWarnings.delete(i)
@@ -1784,49 +2151,51 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
     # repeatedly instead of just once for however long the beam lives).
     # A beam outlives its firer by however long the sweep takes to wash down
     # its length; for that stretch it is scenery, not a hazard.
-    if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0 and
-       not bossHazardDefused(game, game.lasers[j].sourceEnemyId):
-      let laser = game.lasers[j]
+    for victim in game.livingPlayers:
+      withPlayer(game, victim):
+        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0 and
+           not bossHazardDefused(game, game.lasers[j].sourceEnemyId):
+          let laser = game.lasers[j]
 
-      # Transform player position into laser's local space (accounting for rotation)
-      let dx = game.player.pos.x - laser.pos.x
-      let dy = game.player.pos.y - laser.pos.y
+          # Transform player position into laser's local space (accounting for rotation)
+          let dx = game.player.pos.x - laser.pos.x
+          let dy = game.player.pos.y - laser.pos.y
 
-      # Rotate point by -rotation to get local coordinates
-      let cosR = cos(-laser.rotation)
-      let sinR = sin(-laser.rotation)
-      let localX = dx * cosR - dy * sinR
-      let localY = dx * sinR + dy * cosR
+          # Rotate point by -rotation to get local coordinates
+          let cosR = cos(-laser.rotation)
+          let sinR = sin(-laser.rotation)
+          let localX = dx * cosR - dy * sinR
+          let localY = dx * sinR + dy * cosR
 
-      var hit = false
-      case laser.direction
-      of 0:  # Horizontal laser (extends along X axis in local space)
-        if abs(localY) < laser.thickness and abs(localX) < laser.length:
-          hit = true
-      of 1:  # Vertical laser (extends along Y axis in local space)
-        if abs(localX) < laser.thickness and abs(localY) < laser.length:
-          hit = true
-      of 2:  # Cross (both horizontal and vertical in local space)
-        if (abs(localY) < laser.thickness and abs(localX) < laser.length) or
-           (abs(localX) < laser.thickness and abs(localY) < laser.length):
-          hit = true
-      of 3:  # Single radial beam (extends outward along rotation angle)
-        # Check if player is in the beam: within thickness and from center to length
-        if abs(localY) < laser.thickness and localX >= 0 and localX < laser.length:
-          hit = true
-      else:
-        discard
+          var hit = false
+          case laser.direction
+          of 0:  # Horizontal laser (extends along X axis in local space)
+            if abs(localY) < laser.thickness and abs(localX) < laser.length:
+              hit = true
+          of 1:  # Vertical laser (extends along Y axis in local space)
+            if abs(localX) < laser.thickness and abs(localY) < laser.length:
+              hit = true
+          of 2:  # Cross (both horizontal and vertical in local space)
+            if (abs(localY) < laser.thickness and abs(localX) < laser.length) or
+               (abs(localX) < laser.thickness and abs(localY) < laser.length):
+              hit = true
+          of 3:  # Single radial beam (extends outward along rotation angle)
+            # Check if player is in the beam: within thickness and from center to length
+            if abs(localY) < laser.thickness and localX >= 0 and localX < laser.length:
+              hit = true
+          else:
+            discard
 
-      if hit:
-        if takeDamage(game.player, laser.damage.float32):
-          beginPlayerDeathSequence(game, dcLaser, sourceType = laser.enemyType)
-        trackDamageAvoided(game)
-        trackPlayerDamage(game, laser.enemyType)
+          if hit:
+            if takeDamage(game.player, laser.damage.float32):
+              beginPlayerDeathSequence(game, dcLaser, sourceType = laser.enemyType)
+            trackDamageAvoided(game)
+            trackPlayerDamage(game, laser.enemyType)
 
-        # Create damage number for laser damage
-        game.showPlayerDamageTaken(dtLaser)
+            # Create damage number for laser damage
+            game.showPlayerDamageTaken(dtLaser)
 
-        game.player.laserHitCooldown = LaserHitInterval
+            game.player.laserHitCooldown = LaserHitInterval
 
     # Remove expired lasers
     if game.lasers[j].lifetime <= 0:
@@ -2393,19 +2762,18 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
   # The Mirror Cache replays this; the Audit Lock reads the trigger.
   recordPlayerEcho(game, shootDir, isFiring, dt)
 
-proc updatePlayerAndAuras(game: var Game, dt: float32) =
-  # Update player (with wall collision)
-  game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
-  if not modPlayerUpdate(game.player, dt):
-    updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
-  updateBossArenaGameplay(game, dt)
+proc updatePlayerSystems(game: var Game, dt: float32) =
+  ## Everything the active player's own build does this frame, after it has
+  ## moved: Nova's release, the timed volleys, statuses and poison, auras,
+  ## Gravity Well, Pulse Armor, orbitals and firing. Runs once per player.
 
-  # Nova freeze expiry: when novaActive becomes false, release bullets
+  # Nova freeze expiry: when novaActive becomes false, release this player's
+  # frozen bullets (only theirs: a teammate's Nova holds its own volley).
   if not game.player.novaActive:
     const NovaColor = Color(r: 200, g: 200, b: 255, a: 255)
     var released = 0
     for bullet in game.bullets:
-      if bullet.isFrozenByNova and bullet.fromPlayer:
+      if bullet.isFrozenByNova and bullet.fromPlayer and ownerSlot(bullet) == game.player.slot:
         bullet.vel = bullet.vel * 1.5
         bullet.isFrozenByNova = false
         bullet.isFromNova = true  # Mark for damage tracking
@@ -2574,16 +2942,56 @@ proc updatePlayerAndAuras(game: var Game, dt: float32) =
   # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
   updateOrbitalWeapons(game, dt)
 
-  # Decay active lightning bolt visuals
+  updatePlayerFiring(game, dt)
+
+proc updatePresentationLists*(game: var Game, dt: float32) {.moddable.} =
+  ## The world's effect visuals: lightning arcs, AoE boundary rings (Star
+  ## death, etc.) and Aftershock's swept corridors. Pure presentation, once a
+  ## frame; a co-op client ticks them itself between the host's snapshots.
   updateLightningBolts(game, dt)
-
-  # Animate/expire AoE blast boundary rings (Star death, etc.)
   updateShockwaveRings(game, dt)
-
-  # Animate/expire path-swept blast corridors (Aftershock)
   updatePathShockwaves(game, dt)
 
-  updatePlayerFiring(game, dt)
+proc updateFloatingText*(game: var Game, dt: float32) {.moddable.} =
+  ## Damage numbers and the currency / perk pop-ups rising off the arena. Pure
+  ## presentation, once a frame; a co-op client ticks its own.
+  var i = 0
+  while i < game.damageNumbers.len:
+    if not updateDamageNumber(game.damageNumbers[i], dt):
+      game.damageNumbers.delete(i)
+      continue
+    i += 1
+
+  i = 0
+  while i < game.currencyIndicators.len:
+    if not updateCurrencyIndicator(game.currencyIndicators[i], dt):
+      game.currencyIndicators.delete(i)
+      continue
+    i += 1
+
+  i = 0
+  while i < game.perkIndicators.len:
+    if not updatePerkIndicator(game.perkIndicators[i], dt):
+      game.perkIndicators.delete(i)
+      continue
+    i += 1
+
+proc updatePlayerAndAuras(game: var Game, dt: float32) =
+  # Every player moves first (with wall collision), so the arena field and
+  # everything after it see where each one stands this frame.
+  for p in game.livingPlayers:
+    withPlayer(game, p):
+      game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
+      if not modPlayerUpdate(game.player, dt):
+        updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
+  updateBossArenaGameplay(game, dt)
+  for p in game.livingPlayers:
+    withPlayer(game, p):
+      # The arena's combat bonus (applyBossArenaCombatBonus) reads this player's footing.
+      loadArenaSeat(game.osBackground, game.player.arena)
+      updatePlayerSystems(game, dt)
+  loadArenaSeat(game.osBackground, game.player.arena)   # what the arena draws: this machine's player
+  updatePresentationLists(game, dt)
 
 proc updateEnemySpawning(game: var Game, dt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
@@ -3003,146 +3411,157 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
   while enemyIdx < game.enemies.len:
     var enemy = game.enemies[enemyIdx]
 
-    # Curse power-up: evaluate curse eligibility once per enemy. Bosses are always
-    # cursed (so the greatly-reduced bonus reliably applies); normal enemies are
-    # cursed at random based on the power-up level.
-    if not enemy.curseRolled and hasPowerUp(game.player, puCurse):
-      enemy.curseRolled = true
-      if enemy.isBoss:
-        enemy.cursed = true
-      else:
-        let curseChance = case getPowerUpLevel(game.player, puCurse)
-          of 1: 0.25
-          of 2: 0.35
-          else: 0.50
-        enemy.cursed = rand(1.0) < curseChance
+    # Co-op (coop/coop_context.nim): the enemy hunts one player -- its AI and
+    # attacks run with that player active -- while its upkeep and its death
+    # belong to whoever hit it last. In single player both are the player.
+    let quarry = huntedPlayer(game, enemy, dt)
+    var alive = true
+    withPlayer(game, game.creditedPlayer(enemy)):
+      # Curse power-up: evaluate curse eligibility once per enemy. Bosses are always
+      # cursed (so the greatly-reduced bonus reliably applies); normal enemies are
+      # cursed at random based on the power-up level.
+      if not enemy.curseRolled and hasPowerUp(game.player, puCurse):
+        enemy.curseRolled = true
+        if enemy.isBoss:
+          enemy.cursed = true
+        else:
+          let curseChance = case getPowerUpLevel(game.player, puCurse)
+            of 1: 0.25
+            of 2: 0.35
+            else: 0.50
+          enemy.cursed = rand(1.0) < curseChance
 
-    # Update elite effects (regeneration, etc.)
-    updateEliteEffects(enemy, dt)
+      # Update elite effects (regeneration, etc.)
+      updateEliteEffects(enemy, dt)
 
-    if enemy.isBoss and enemy.bossPhaseBreakFlashTimer > 0:
-      enemy.bossPhaseBreakFlashTimer = max(0.0'f32, enemy.bossPhaseBreakFlashTimer - dt)
+      if enemy.isBoss and enemy.bossPhaseBreakFlashTimer > 0:
+        enemy.bossPhaseBreakFlashTimer = max(0.0'f32, enemy.bossPhaseBreakFlashTimer - dt)
 
-    # Update all active DoT effects for this enemy, remembering each element's
-    # share of the tick so damage numbers and statistics can stay per-element.
-    var elemTickDamage: array[ElementType, float32]
-    var totalTickDamage = 0.0'f32
-    for et in ElementType:
-      if hasActiveEffect(enemy, et):
-        elemTickDamage[et] = enemy.activeEffects[et].primary.damagePerSec * effectiveDt
-        if et == etPoison:
-          # Keep the display/statistics share in sync with the stacked tick
-          # that updateEffects is about to deal
-          elemTickDamage[et] *= poisonStackMultiplier(enemy)
-        totalTickDamage += elemTickDamage[et]
-    let poisonTickDamage = elemTickDamage[etPoison]
-    let fireTickDamage = elemTickDamage[etFire]
-    # The effects that are ABOUT to tick, captured before updateEffects: when a
-    # tick expires the primary it promotes the fallback into the same slot, and
-    # reading the slot afterwards credited the tick to an effect from a different
-    # source that had not ticked yet.
-    let poisonEffect = enemy.activeEffects[etPoison].primary
-    let fireEffect = enemy.activeEffects[etFire].primary
+      # Update all active DoT effects for this enemy, remembering each element's
+      # share of the tick so damage numbers and statistics can stay per-element.
+      var elemTickDamage: array[ElementType, float32]
+      var totalTickDamage = 0.0'f32
+      for et in ElementType:
+        if hasActiveEffect(enemy, et):
+          elemTickDamage[et] = enemy.activeEffects[et].primary.damagePerSec * effectiveDt
+          if et == etPoison:
+            # Keep the display/statistics share in sync with the stacked tick
+            # that updateEffects is about to deal
+            elemTickDamage[et] *= poisonStackMultiplier(enemy)
+          totalTickDamage += elemTickDamage[et]
+      let poisonTickDamage = elemTickDamage[etPoison]
+      let fireTickDamage = elemTickDamage[etFire]
+      # The effects that are ABOUT to tick, captured before updateEffects: when a
+      # tick expires the primary it promotes the fallback into the same slot, and
+      # reading the slot afterwards credited the tick to an effect from a different
+      # source that had not ticked yet.
+      let poisonEffect = enemy.activeEffects[etPoison].primary
+      let fireEffect = enemy.activeEffects[etFire].primary
 
-    let effectDamage = updateEffects(enemy, effectiveDt)
-    if enemy.modStatuses.len > 0:
-      tickModStatuses(enemy, effectiveDt)   # mod statuses, on the enemies' clock
-    if effectDamage > 0:
-      # Stars use hitCount instead of HP; only register a hit when the 0.5s
-      # aura-accumulation window flushes, not every frame (~60x/sec).
-      let actualDamage = if enemy.enemyType == etStar:
-        let timeSinceFlush = game.time - enemy.auraAcc.lastTime
-        if timeSinceFlush >= 0.5 or enemy.auraAcc.lastTime == 0:
-          enemy.hitCount += 1
-          accumulateAndShowAuraDamage(game, enemy, 0.01, dtHitCount, false)
-        0.0'f32
-      else:
-        damageEnemy(enemy, effectDamage, consumesDiamondShield = false)
-      let trackedTickDamage = poisonTickDamage + fireTickDamage
+      let effectDamage = updateEffects(enemy, effectiveDt)
+      if enemy.modStatuses.len > 0:
+        tickModStatuses(enemy, effectiveDt)   # mod statuses, on the enemies' clock
+      if effectDamage > 0:
+        # Stars use hitCount instead of HP; only register a hit when the 0.5s
+        # aura-accumulation window flushes, not every frame (~60x/sec).
+        let actualDamage = if enemy.enemyType == etStar:
+          let timeSinceFlush = game.time - enemy.auraAcc.lastTime
+          if timeSinceFlush >= 0.5 or enemy.auraAcc.lastTime == 0:
+            enemy.hitCount += 1
+            accumulateAndShowAuraDamage(game, enemy, 0.01, dtHitCount, false)
+          0.0'f32
+        else:
+          damageEnemy(enemy, effectDamage, consumesDiamondShield = false)
+        let trackedTickDamage = poisonTickDamage + fireTickDamage
 
-      # Track DoT damage for power-up statistics; attribute each element's tick
-      # to whichever power-up applied the effect (its primary source).
-      if poisonTickDamage > 0:
-        let poisonActualDamage =
-          if trackedTickDamage > 0: actualDamage * (poisonTickDamage / trackedTickDamage)
-          else: actualDamage
-        var attributed = true
-        var poisonOwner = puPoisonAura
-        case poisonEffect.source
-        of "aura": poisonOwner = puPoisonAura
-        of "shot", "bullet": poisonOwner = puPoisonShot
-        of "orb": poisonOwner = puPoisonOrb
-        # Volatile's death pulse re-seeds the element on nearby enemies; those
-        # ticks used to fall through to "unattributed" and vanish from the stats.
-        of "volatile_pulse": poisonOwner = puVolatile
-        else: attributed = false
-        if attributed:
-          # hadMastery is the flag from the moment the DoT was APPLIED, so a
-          # poison that predates the mastery pick doesn't retroactively credit it.
-          trackPowerUpDamageWithMastery(game, poisonOwner, puPoisonMastery, poisonActualDamage,
-            if poisonEffect.hadMastery: PoisonMasteryDmgMult else: 1.0'f32)
-      if fireTickDamage > 0:
-        let fireActualDamage =
-          if trackedTickDamage > 0: actualDamage * (fireTickDamage / trackedTickDamage)
-          else: actualDamage
-        var attributed = true
-        var fireOwner = puFireAura
-        case fireEffect.source
-        of "aura": fireOwner = puFireAura
-        of "shot", "bullet": fireOwner = puFireBullets
-        of "orb": fireOwner = puFireOrb
-        of "volatile_pulse": fireOwner = puVolatile
-        else: attributed = false
-        if attributed:
-          trackPowerUpDamageWithMastery(game, fireOwner, puFireMastery, fireActualDamage,
-            if fireEffect.hadMastery: FireMasteryDmgMult else: 1.0'f32)
+        # Track DoT damage for power-up statistics; attribute each element's tick
+        # to whichever power-up applied the effect (its primary source).
+        if poisonTickDamage > 0:
+          let poisonActualDamage =
+            if trackedTickDamage > 0: actualDamage * (poisonTickDamage / trackedTickDamage)
+            else: actualDamage
+          var attributed = true
+          var poisonOwner = puPoisonAura
+          case poisonEffect.source
+          of "aura": poisonOwner = puPoisonAura
+          of "shot", "bullet": poisonOwner = puPoisonShot
+          of "orb": poisonOwner = puPoisonOrb
+          # Volatile's death pulse re-seeds the element on nearby enemies; those
+          # ticks used to fall through to "unattributed" and vanish from the stats.
+          of "volatile_pulse": poisonOwner = puVolatile
+          else: attributed = false
+          if attributed:
+            # hadMastery is the flag from the moment the DoT was APPLIED, so a
+            # poison that predates the mastery pick doesn't retroactively credit it.
+            trackPowerUpDamageWithMastery(game, poisonOwner, puPoisonMastery, poisonActualDamage,
+              if poisonEffect.hadMastery: PoisonMasteryDmgMult else: 1.0'f32)
+        if fireTickDamage > 0:
+          let fireActualDamage =
+            if trackedTickDamage > 0: actualDamage * (fireTickDamage / trackedTickDamage)
+            else: actualDamage
+          var attributed = true
+          var fireOwner = puFireAura
+          case fireEffect.source
+          of "aura": fireOwner = puFireAura
+          of "shot", "bullet": fireOwner = puFireBullets
+          of "orb": fireOwner = puFireOrb
+          of "volatile_pulse": fireOwner = puVolatile
+          else: attributed = false
+          if attributed:
+            trackPowerUpDamageWithMastery(game, fireOwner, puFireMastery, fireActualDamage,
+              if fireEffect.hadMastery: FireMasteryDmgMult else: 1.0'f32)
 
-      # Per-element damage numbers: each element accumulates separately so a
-      # burning+poisoned enemy shows fast orange ticks AND slow green chunks
-      # instead of one merged number in whichever color happened to win.
-      if enemy.enemyType != etStar and totalTickDamage > 0:
-        for et in ElementType:
-          if elemTickDamage[et] > 0:
-            let elemShare = actualDamage * (elemTickDamage[et] / totalTickDamage)
-            accumulateDotDamage(game, enemy, et, elemShare)
+        # Per-element damage numbers: each element accumulates separately so a
+        # burning+poisoned enemy shows fast orange ticks AND slow green chunks
+        # instead of one merged number in whichever color happened to win.
+        if enemy.enemyType != etStar and totalTickDamage > 0:
+          for et in ElementType:
+            if elemTickDamage[et] > 0:
+              let elemShare = actualDamage * (elemTickDamage[et] / totalTickDamage)
+              accumulateDotDamage(game, enemy, et, elemShare)
 
-    # (The chain lightning cooldown and slow timer are ticked inside updateEnemy.
-    # They used to be ticked here as well, which ran every slow out at double
-    # speed and halved the chain lightning cooldown.)
+      # (The chain lightning cooldown and slow timer are ticked inside updateEnemy.
+      # They used to be ticked here as well, which ran every slow out at double
+      # speed and halved the chain lightning cooldown.)
 
-    if enemy.hitFlashTimer > 0:
-      enemy.hitFlashTimer -= dt
-    if enemy.spawnRingTimer > 0:
-      enemy.spawnRingTimer -= dt
+      if enemy.hitFlashTimer > 0:
+        enemy.hitFlashTimer -= dt
+      if enemy.spawnRingTimer > 0:
+        enemy.spawnRingTimer -= dt
 
-    discard tryAdvanceBossPhase(game, enemy)
+      discard tryAdvanceBossPhase(game, enemy)
 
-    # Knockback impulse (Pulse Armor, etc.): integrated into position and decayed
-    # on its own timeline so the chase AI in updateEnemy can't instantly cancel it.
-    # This is what makes a shove read as a real launch-back rather than a nudge.
-    if enemy.knockbackVel.x != 0.0 or enemy.knockbackVel.y != 0.0:
-      enemy.pos.x += enemy.knockbackVel.x * effectiveDt
-      enemy.pos.y += enemy.knockbackVel.y * effectiveDt
-      # Keep knocked-back enemies on screen
-      enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
-      enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
-      # Exponential falloff: punchy launch that settles in ~0.3s, framerate-independent
-      let decay = pow(0.015'f32, effectiveDt)
-      enemy.knockbackVel.x *= decay
-      enemy.knockbackVel.y *= decay
-      if enemy.knockbackVel.length() < 5.0:
-        enemy.knockbackVel = vec2(0, 0)
+      # Knockback impulse (Pulse Armor, etc.): integrated into position and decayed
+      # on its own timeline so the chase AI in updateEnemy can't instantly cancel it.
+      # This is what makes a shove read as a real launch-back rather than a nudge.
+      if enemy.knockbackVel.x != 0.0 or enemy.knockbackVel.y != 0.0:
+        enemy.pos.x += enemy.knockbackVel.x * effectiveDt
+        enemy.pos.y += enemy.knockbackVel.y * effectiveDt
+        # Keep knocked-back enemies on screen
+        enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
+        enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
+        # Exponential falloff: punchy launch that settles in ~0.3s, framerate-independent
+        let decay = pow(0.015'f32, effectiveDt)
+        enemy.knockbackVel.x *= decay
+        enemy.knockbackVel.y *= decay
+        if enemy.knockbackVel.length() < 5.0:
+          enemy.knockbackVel = vec2(0, 0)
 
-    if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
+    withPlayer(game, quarry):
+      alive = updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game)  # Use slowed time
       # Safety net for the boss phase invariant: any damage path that emptied the
       # phase pool after the tryAdvanceBossPhase check above -- including damage
       # dealt inside updateEnemy itself -- must break the boss into its next
       # phase, never be read as a defeat while phases remain.
-      if enemy.isBoss and tryAdvanceBossPhase(game, enemy):
-        game.enemies[enemyIdx] = enemy
-        enemyIdx += 1
-        continue
+      if not alive and enemy.isBoss and tryAdvanceBossPhase(game, enemy):
+        alive = true
+    if alive:
+      # Write back modified enemy to array
+      game.enemies[enemyIdx] = enemy
+      enemyIdx += 1
+      continue
 
+    withPlayer(game, game.creditedPlayer(enemy)):
       # Enemy died - show any accumulated aura/DoT damage before death
       flushAccumulatedAuraDamage(game, enemy)
       flushAccumulatedDotDamage(game, enemy)
@@ -3178,18 +3597,20 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Play explosion sound
         playSound(stExplosion, 0.7)
 
-        # Check if player is in explosion radius
-        let distToPlayer = distance(enemy.pos, game.player.pos)
-        if distToPlayer < eliteExplosionRadius:
-          if takeDamage(game.player, eliteExplosionDamage):
-            beginPlayerDeathSequence(game, dcExplosion, source = enemy)
-          trackDamageAvoided(game)
+        # Check every player in explosion radius
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            let distToPlayer = distance(enemy.pos, game.player.pos)
+            if distToPlayer < eliteExplosionRadius:
+              if takeDamage(game.player, eliteExplosionDamage):
+                beginPlayerDeathSequence(game, dcExplosion, source = enemy)
+              trackDamageAvoided(game)
 
-          # Track explosion damage for statistics
-          trackPlayerDamage(game, enemy.enemyType)
+              # Track explosion damage for statistics
+              trackPlayerDamage(game, enemy.enemyType)
 
-          # Create damage number for explosion damage
-          game.showPlayerDamageTaken(dtExplosion)
+              # Create damage number for explosion damage
+              game.showPlayerDamageTaken(dtExplosion)
 
         # Create explosion visual
         spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -3204,18 +3625,20 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Play explosion sound
         playSound(stExplosion, 0.8)
 
-        # Check if player is in explosion radius
-        let distToPlayer = distance(enemy.pos, game.player.pos)
-        if distToPlayer < explosionRadius:
-          if takeDamage(game.player, explosionDamage):
-            beginPlayerDeathSequence(game, dcExplosion, source = enemy)
-          trackDamageAvoided(game)
+        # Check every player in explosion radius
+        for victim in game.livingPlayers:
+          withPlayer(game, victim):
+            let distToPlayer = distance(enemy.pos, game.player.pos)
+            if distToPlayer < explosionRadius:
+              if takeDamage(game.player, explosionDamage):
+                beginPlayerDeathSequence(game, dcExplosion, source = enemy)
+              trackDamageAvoided(game)
 
-          # Track boss explosion damage for statistics
-          trackPlayerDamage(game, enemy.enemyType)
+              # Track boss explosion damage for statistics
+              trackPlayerDamage(game, enemy.enemyType)
 
-          # Create damage number for boss explosion damage
-          game.showPlayerDamageTaken(dtExplosion)
+              # Create damage number for boss explosion damage
+              game.showPlayerDamageTaken(dtExplosion)
 
         # Create MASSIVE explosion visual with multiple layers
         spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -3504,7 +3927,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         bossDefeated = true
         detonateBossCorpse(game, enemy)
         modBossDeath(enemy, game)
-        # Remember this boss so its full phase layout may be revealed next time.
+        # Remember this boss so its full phase layout may be revealed next time
+        # (in co-op, in every player's own codex).
+        if not game.cheatsUsed and enemy.bossDefinitionID > 0:
+          pushTeamProfileEvent(game, ProfileEvent(kind: pekBossDefeated,
+                                                  a: int32(enemy.bossDefinitionID)))
         if globalStats != nil and not game.cheatsUsed and enemy.bossDefinitionID > 0 and
            not globalStats.hasDefeatedBoss(enemy.bossDefinitionID):
           globalStats.markBossDefeated(enemy.bossDefinitionID)
@@ -3567,12 +3994,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
               spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                                    elementColor(et), 8)
 
-      game.enemies.delete(enemyIdx)
-      continue
-
-    # Write back modified enemy to array
-    game.enemies[enemyIdx] = enemy
-    enemyIdx += 1
+    game.enemies.delete(enemyIdx)
 
   # Enemy-to-enemy collision detection (prevents overlapping)
   # Uses smaller collisionRadius for more natural-feeling spacing.
@@ -3608,311 +4030,319 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
   while enemyIdx < game.enemies.len:
     var enemy = game.enemies[enemyIdx]
 
-    # BOSS SPECIAL ATTACKS
-    if enemy.isBoss:
-      # CUSTOM BOSS ATTACKS - Full pattern system from boss_definitions.nim
-      # Get boss definition and update phase-shield timing.
-      let bossDef = getBossDefinition(enemy.bossDefinitionID)
-
-      # Update invulnerability timer
-      if enemy.invulnerabilityTimer > 0:
-        enemy.invulnerabilityTimer -= dt
-        if enemy.invulnerabilityTimer < 0:
-          enemy.invulnerabilityTimer = 0
-
-      # Mega-cast channel (e.g. boss 4's ricochet beam): tick it down and keep
-      # the boss frozen in place while it charges.
-      if enemy.megaCastTimer > 0:
-        enemy.megaCastTimer -= dt
-        if enemy.megaCastTimer <= 0:
-          enemy.megaCastTimer = 0
-          enemy.megaCastTotal = 0
-        else:
-          enemy.vel = vec2(0, 0)
-
-      # Update boss behavior based on specialBehavior. The boss holds completely
-      # still during a phase-change transition (and while channelling a mega
-      # special) so the animation reads as a dramatic "charge up" beat rather
-      # than a moving target.
-      if enemy.invulnerabilityTimer <= 0 and enemy.megaCastTimer <= 0 and
-         enemy.currentPhaseIndex < bossDef.phases.len:
-        let phase = bossDef.phases[enemy.currentPhaseIndex]
-
-        # Ranged-pattern bosses maintain a safe preferred distance from the player.
-        # Within the preferred radius they slow noticeably; inside the inner radius
-        # a retreat push is applied AFTER movement so pattern-based paths
-        # (figure-8, orbits, lasers) can't accidentally pin the player in a corner.
-        const RANGED_BOSS_PREFERRED_DIST = 150.0'f32  # Start slowing inside this
-        const RANGED_BOSS_INNER_DIST     =  80.0'f32  # Apply retreat push inside this
-        const RANGED_BOSS_CLOSE_DIST     =  20.0'f32  # Original hard-close slow for melee
-
-        let isRangedBossPhase = phase.specialBehavior in [
-          "geometric_movement", "laser_web",      "laser_chaos",
-          "defensive",          "summon_frenzy",
-          "prism_defense",      "prism_array",     "light_cascade",
-          "slow_time",          "time_distortion", "time_collapse",
-          "orbital_pattern",    "satellite_swarm", "deploy_satellites", "multi_orbital",
-          "orbital_chaos",                          # Boss 7 P3: zone like its earlier phases
-          "electric_buildup",   "electric_surge",
-          "critical_discharge"                      # Boss 6 P3: zone like its earlier phases
-        ]
-
-        let distToPlayer = distance(enemy.pos, game.player.pos)
-        let savedSpeed = enemy.speed
-        if not enemy.isDashing:
-          if isRangedBossPhase:
-            if distToPlayer < RANGED_BOSS_INNER_DIST:
-              # Very close: slow to 50%, noticeable but not a wall
-              enemy.speed *= 0.5
-            elif distToPlayer < RANGED_BOSS_PREFERRED_DIST:
-              # Gradual taper: full speed at preferred dist, 50% at inner dist
-              let t = (distToPlayer - RANGED_BOSS_INNER_DIST) /
-                      (RANGED_BOSS_PREFERRED_DIST - RANGED_BOSS_INNER_DIST)
-              enemy.speed *= 0.5 + t * 0.5
-          elif distToPlayer < RANGED_BOSS_CLOSE_DIST:
-            enemy.speed *= 0.5  # Original melee-boss hard-close slow
-
-        updateCustomBossBehavior(game, enemy, phase, dt)
-        enemy.speed = savedSpeed  # Always restore the real speed
-
-        # Post-movement retreat push: gently nudge ranged bosses away from
-        # the player after pattern movement to prevent unintended pin-downs.
-        if isRangedBossPhase and not enemy.isDashing:
-          let postDist = distance(enemy.pos, game.player.pos)
-          if postDist < RANGED_BOSS_INNER_DIST and postDist > 0.1'f32:
-            let awayDir = (enemy.pos - game.player.pos).normalize()
-            let pushStrength = (1.0'f32 - postDist / RANGED_BOSS_INNER_DIST) * 50.0'f32
-            enemy.pos.x += awayDir.x * pushStrength * dt
-            enemy.pos.y += awayDir.y * pushStrength * dt
-
-      # Juggernaut charge combo beats (windup / reaim / winded); a launch here
-      # is moved by the dash block below on this same frame.
-      updateChargeCombo(game, enemy, dt)
-
-      # Handle boss dash movement (overrides normal movement)
-      if enemy.isDashing:
-        enemy.dashDuration -= dt
-        if enemy.dashDuration > 0:
-          # Apply dash velocity strictly along the committed warning line.
-          # Projection keeps inertia/other systems from nudging the boss off-path.
-          let dashStart = enemy.pendingDashStart
-          let dashEnd = enemy.dashTargetPos
-          let dashPath = dashEnd - dashStart
-          let dashLenSq = dashPath.x * dashPath.x + dashPath.y * dashPath.y
-          if dashLenSq > 0.01'f32:
-            let proposedPos = enemy.pos + enemy.dashVelocity * dt
-            let fromStart = proposedPos - dashStart
-            let progress = clamp((fromStart.x * dashPath.x + fromStart.y * dashPath.y) / dashLenSq,
-                                 0.0'f32, 1.0'f32)
-            enemy.pos = dashStart + dashPath * progress
-            if progress >= 1.0'f32:
-              enemy.dashDuration = 0
-          else:
-            enemy.dashDuration = 0
-
-          # Create dash trail particles ~15 times/sec regardless of fps
-          if (enemy.dashDuration mod (1.0 / 15.0)) < dt:
-            let trailColor = if enemy.currentPhaseIndex < bossDef.phases.len:
-              bossDef.phases[enemy.currentPhaseIndex].color
-            else:
-              Red
-            spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, trailColor, 5)
-        else:
-          # Dash complete
-          enemy.vel = enemy.dashVelocity
-          enemy.isDashing = false
-          enemy.dashDuration = 0
-          if enemy.currentPhaseIndex < bossDef.phases.len:
-            let endColor = bossDef.phases[enemy.currentPhaseIndex].color
-            spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, endColor, 20)
-          endChargeComboCharge(game, enemy)
-
-      # Boss smashes through dungeon obstacles. Custom bosses move by directly
-      # setting enemy.pos (above) and never run the enemy/wall collision path, so
-      # contact damage can't reach walls - destroy any obstacle the boss now
-      # overlaps. Setting hp to 0 lets the wall-update loop handle the explosion
-      # and queue the boss-room respawn (no self-damage to the boss). Skipped
-      # during the fly-in entrance so the boss doesn't clear a swath on arrival.
-      if enemy.entranceTimer <= 0:
-        for wall in game.walls:
-          if wall.permanent and wall.hp > 0 and
-             distance(enemy.pos, wall.pos) < enemy.radius + wall.radius:
-            wall.hp = 0
-
-      updateBossWeakPoint(enemy, bossDef.weakPoint, game.player.pos, game.screenWidth, game.screenHeight, dt)
-      updateBossMechanics(game, enemy, dt)
-
-      # Count the legion's still-living Royal Guards. While any stand, the
-      # summon attack's countdown is frozen, so the loop is: summon -> player
-      # slays the guards -> countdown starts -> countdown ends -> summon again.
-      # The rank and file never hold it (an ignored crowd is capped at the
-      # summon instead), so one straggler can't stall the fight.
-      let livingGuards = livingRoyalGuardCount(game)
-
-      # Summoner King: drive the objective from the live guard count (single
-      # source of truth - no desync). Pips show how many guards have fallen;
-      # the last one opens the vulnerability window. Gated to the summon objective.
-      if enemy.summonWaveActive and enemy.weakPoint.kind == bwoSummonSigils:
-        enemy.weakPoint.progress = max(0, enemy.weakPoint.required - livingGuards)
-        if livingGuards == 0:
-          let summonWindow = openBossSummonWindow(enemy)
-          if summonWindow.opened:
-            enemy.summonWaveActive = false
-            enemy.weakPoint.required = 0  # hide the cleared pips during the window
-            if summonWindow.bonusDamage > 0:
-              let dealt = applyEnemyHpDamage(enemy, summonWindow.bonusDamage)
-              if dealt > 0:
-                showDamage(game, enemy.pos, dealt, true, false, dtArcane)
-                addShake(game.dopamine.screenShake, siLarge)
-
-      tickBossAttacks(game, enemy, bossDef, dt)
-
-      # Drive any in-flight spiral volley armed by bapSpiral. This emits one step
-      # per frame independent of the attack cooldown, which is what makes the
-      # bullet trail an actual spiral rather than a ring.
-      updateBossSpiralStream(game, enemy, dt)
-
-    # Regular enemy shooting (config-driven system)
-    fireConfiguredEnemyShot(game, enemy)
-
-    # Check collision with player (with small coyote/forgiveness zone on edges)
-    # Reduce effective collision radius by 10% for slight edge forgiveness
-    let effectivePlayerRadius = game.player.radius * 0.90  # 10% reduction = coyote
-    if distance(enemy.pos, game.player.pos) < enemy.radius + effectivePlayerRadius:
+    # Its attacks aim at the player it hunts (huntedPlayer, the loop above).
+    withPlayer(game, game.currentQuarry(enemy)):
+      # BOSS SPECIAL ATTACKS
       if enemy.isBoss:
-        # Boss deals continuous damage: 10% of the player's max HP per second.
-        # Damage applied each tick is DPS * elapsed_time (capped to the intended interval)
-        # A Juggernaut charge that connects hits for the charge's own damage
-        # instead: being run over IS the attack. The shared 0.5 s gate keeps it
-        # to one hit per pass (the body crosses the player in well under that).
-        let chargeImpact = enemy.chargeState == ccCharging and enemy.isDashing
-        if game.time - enemy.lastContactDamageTime >= 0.5:
-          let elapsed = min(game.time - enemy.lastContactDamageTime, 0.5'f32)
-          let bossDps = 0.10'f32 * game.player.maxHp
-          var bossContactDamage = if chargeImpact: enemy.chargeDamage
-                                  else: bossDps * elapsed
-          if modsActive:
-            bossContactDamage = modEnemyContact(enemy, bossContactDamage * enemyDamageDealtMult(enemy))
+        # CUSTOM BOSS ATTACKS - Full pattern system from boss_definitions.nim
+        # Get boss definition and update phase-shield timing.
+        let bossDef = getBossDefinition(enemy.bossDefinitionID)
 
-          let playerDied = takeDamage(game.player, bossContactDamage)
-          trackDamageAvoided(game)
+        # Update invulnerability timer
+        if enemy.invulnerabilityTimer > 0:
+          enemy.invulnerabilityTimer -= dt
+          if enemy.invulnerabilityTimer < 0:
+            enemy.invulnerabilityTimer = 0
 
-          # Thorns reflects a hit that landed. Resolved after takeDamage so a hit
-          # that invincibility, a shield charge or a dodge stopped reflects nothing.
-          if game.player.lastDamageTaken > 0:
-            discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
-
-          # Pulse Armor knockback is handled centrally by the trigger block in
-          # updateGame (takeDamage above sets the -1 trigger flag).
-
-          if playerDied:
-            beginPlayerDeathSequence(game, dcBossContact, source = enemy)
-
-          # Track boss contact damage for statistics
-          trackPlayerDamage(game, enemy.enemyType)
-
-          # Create damage number for boss contact damage
-          game.showPlayerDamageTaken(dtDefault)
-
-          playSound(stPlayerHit, 0.6)
-          enemy.lastContactDamageTime = game.time
-          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Red,
-                               (if chargeImpact: 24 else: 10))
-          if chargeImpact:
-            addShake(game.dopamine.screenShake, siLarge)
-      else:
-        # Regular enemies deal contact damage with cooldown
-        if game.time - enemy.lastContactDamageTime >= 0.33:  # Contact damage cooldown
-          var enemyContactDamage = enemy.contactDamage.float32  # Damage enemy deals to player
-          if modsActive:
-            enemyContactDamage = modEnemyContact(enemy, enemyContactDamage * enemyDamageDealtMult(enemy))
-
-          let playerDied = takeDamage(game.player, enemyContactDamage)
-          trackDamageAvoided(game)
-          # Both on-hit effects below need a hit that landed: a touch that
-          # invincibility, a shield charge or a dodge stopped neither poisons the
-          # player nor reflects Thorns damage.
-          let contactLanded = game.player.lastDamageTaken > 0
-
-          # Venomous elite effect - applies poison to player
-          # Handles multiple elite types (wave 25+)
-          if contactLanded and enemy.isElite and etVenomous in enemy.eliteTypes:
-            game.player.poisonTimer = 3.0  # 3 seconds of poison
-            game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage
-            game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
-            game.player.poisonSourceType = enemy.enemyType  # Track source for stats
-            spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 10)
-
-          # Thorns reflection damage - damages enemy but doesn't kill instantly
-          if contactLanded:
-            discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
-
-          # Pulse Armor knockback is handled centrally by the trigger block in
-          # updateGame (takeDamage above sets the -1 trigger flag).
-
-          if playerDied:
-            beginPlayerDeathSequence(game, dcContact, source = enemy)
-
-          # Track enemy contact damage for statistics
-          trackPlayerDamage(game, enemy.enemyType)
-
-          # Create damage number for player taking damage
-          game.showPlayerDamageTaken(dtDefault)
-
-          playSound(stPlayerHit, 0.5)
-
-          # Deal contact damage to enemy based on player damage stat, speed, and crits
-          let (contactDamageToEnemy, contactWasCrit) = calculateContactDamageToEnemy(game.player, enemy)
-
-          # Ramming a Port Guard's raised shield does nothing to it
-          let rammedShield = shieldBlocksHit(game, enemy, game.player.pos)
-
-          # Stars use hit counter for all damage sources
-          if enemy.enemyType == etStar:
-            enemy.hitCount += 1
-          elif not rammedShield:
-            discard damageEnemy(enemy, contactDamageToEnemy)
-
-          enemy.lastContactDamageTime = game.time
-
-          # Accumulate damage for damage number display (shows every 0.5s)
-          # Crits shown immediately and in the right color
-          if rammedShield:
-            discard
-          elif contactWasCrit:
-            showDamage(game, enemy.pos, contactDamageToEnemy, true, true, dtCritical)
+        # Mega-cast channel (e.g. boss 4's ricochet beam): tick it down and keep
+        # the boss frozen in place while it charges.
+        if enemy.megaCastTimer > 0:
+          enemy.megaCastTimer -= dt
+          if enemy.megaCastTimer <= 0:
+            enemy.megaCastTimer = 0
+            enemy.megaCastTotal = 0
           else:
-            accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
+            enemy.vel = vec2(0, 0)
 
-          # Visual feedback, more particles for crits
-          let contactParticleCount = if contactWasCrit: 8 else: 3
-          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, contactParticleCount)
+        # Update boss behavior based on specialBehavior. The boss holds completely
+        # still during a phase-change transition (and while channelling a mega
+        # special) so the animation reads as a dramatic "charge up" beat rather
+        # than a moving target.
+        if enemy.invulnerabilityTimer <= 0 and enemy.megaCastTimer <= 0 and
+           enemy.currentPhaseIndex < bossDef.phases.len:
+          let phase = bossDef.phases[enemy.currentPhaseIndex]
 
-          # Enemies are never deleted here. All death bookkeeping -- coins, XP,
-          # the kill count and statistics, combo, lifesteal, the Star and
-          # Explosive-elite death blasts, and for bosses the phase break and
-          # wave flow -- lives in the main enemy update loop, and a contact
-          # kill is picked up there next frame like every other kill (deleting
-          # it here silently threw all of that away).
-          # The boss arm uses the alive threshold, not `<= 0`, so a phase pool
-          # left with sub-threshold float residue still breaks into the next
-          # phase instead of reaching the update loop looking defeated.
+          # Ranged-pattern bosses maintain a safe preferred distance from the player.
+          # Within the preferred radius they slow noticeably; inside the inner radius
+          # a retreat push is applied AFTER movement so pattern-based paths
+          # (figure-8, orbits, lasers) can't accidentally pin the player in a corner.
+          const RANGED_BOSS_PREFERRED_DIST = 150.0'f32  # Start slowing inside this
+          const RANGED_BOSS_INNER_DIST     =  80.0'f32  # Apply retreat push inside this
+          const RANGED_BOSS_CLOSE_DIST     =  20.0'f32  # Original hard-close slow for melee
+
+          let isRangedBossPhase = phase.specialBehavior in [
+            "geometric_movement", "laser_web",      "laser_chaos",
+            "defensive",          "summon_frenzy",
+            "prism_defense",      "prism_array",     "light_cascade",
+            "slow_time",          "time_distortion", "time_collapse",
+            "orbital_pattern",    "satellite_swarm", "deploy_satellites", "multi_orbital",
+            "orbital_chaos",                          # Boss 7 P3: zone like its earlier phases
+            "electric_buildup",   "electric_surge",
+            "critical_discharge"                      # Boss 6 P3: zone like its earlier phases
+          ]
+
+          let distToPlayer = distance(enemy.pos, game.player.pos)
+          let savedSpeed = enemy.speed
+          if not enemy.isDashing:
+            if isRangedBossPhase:
+              if distToPlayer < RANGED_BOSS_INNER_DIST:
+                # Very close: slow to 50%, noticeable but not a wall
+                enemy.speed *= 0.5
+              elif distToPlayer < RANGED_BOSS_PREFERRED_DIST:
+                # Gradual taper: full speed at preferred dist, 50% at inner dist
+                let t = (distToPlayer - RANGED_BOSS_INNER_DIST) /
+                        (RANGED_BOSS_PREFERRED_DIST - RANGED_BOSS_INNER_DIST)
+                enemy.speed *= 0.5 + t * 0.5
+            elif distToPlayer < RANGED_BOSS_CLOSE_DIST:
+              enemy.speed *= 0.5  # Original melee-boss hard-close slow
+
+          updateCustomBossBehavior(game, enemy, phase, dt)
+          enemy.speed = savedSpeed  # Always restore the real speed
+
+          # Post-movement retreat push: gently nudge ranged bosses away from
+          # the player after pattern movement to prevent unintended pin-downs.
+          if isRangedBossPhase and not enemy.isDashing:
+            let postDist = distance(enemy.pos, game.player.pos)
+            if postDist < RANGED_BOSS_INNER_DIST and postDist > 0.1'f32:
+              let awayDir = (enemy.pos - game.player.pos).normalize()
+              let pushStrength = (1.0'f32 - postDist / RANGED_BOSS_INNER_DIST) * 50.0'f32
+              enemy.pos.x += awayDir.x * pushStrength * dt
+              enemy.pos.y += awayDir.y * pushStrength * dt
+
+        # Juggernaut charge combo beats (windup / reaim / winded); a launch here
+        # is moved by the dash block below on this same frame.
+        updateChargeCombo(game, enemy, dt)
+
+        # Handle boss dash movement (overrides normal movement)
+        if enemy.isDashing:
+          enemy.dashDuration -= dt
+          if enemy.dashDuration > 0:
+            # Apply dash velocity strictly along the committed warning line.
+            # Projection keeps inertia/other systems from nudging the boss off-path.
+            let dashStart = enemy.pendingDashStart
+            let dashEnd = enemy.dashTargetPos
+            let dashPath = dashEnd - dashStart
+            let dashLenSq = dashPath.x * dashPath.x + dashPath.y * dashPath.y
+            if dashLenSq > 0.01'f32:
+              let proposedPos = enemy.pos + enemy.dashVelocity * dt
+              let fromStart = proposedPos - dashStart
+              let progress = clamp((fromStart.x * dashPath.x + fromStart.y * dashPath.y) / dashLenSq,
+                                   0.0'f32, 1.0'f32)
+              enemy.pos = dashStart + dashPath * progress
+              if progress >= 1.0'f32:
+                enemy.dashDuration = 0
+            else:
+              enemy.dashDuration = 0
+
+            # Create dash trail particles ~15 times/sec regardless of fps
+            if (enemy.dashDuration mod (1.0 / 15.0)) < dt:
+              let trailColor = if enemy.currentPhaseIndex < bossDef.phases.len:
+                bossDef.phases[enemy.currentPhaseIndex].color
+              else:
+                Red
+              spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, trailColor, 5)
+          else:
+            # Dash complete
+            enemy.vel = enemy.dashVelocity
+            enemy.isDashing = false
+            enemy.dashDuration = 0
+            if enemy.currentPhaseIndex < bossDef.phases.len:
+              let endColor = bossDef.phases[enemy.currentPhaseIndex].color
+              spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, endColor, 20)
+            endChargeComboCharge(game, enemy)
+
+        # Boss smashes through dungeon obstacles. Custom bosses move by directly
+        # setting enemy.pos (above) and never run the enemy/wall collision path, so
+        # contact damage can't reach walls - destroy any obstacle the boss now
+        # overlaps. Setting hp to 0 lets the wall-update loop handle the explosion
+        # and queue the boss-room respawn (no self-damage to the boss). Skipped
+        # during the fly-in entrance so the boss doesn't clear a swath on arrival.
+        if enemy.entranceTimer <= 0:
+          for wall in game.walls:
+            if wall.permanent and wall.hp > 0 and
+               distance(enemy.pos, wall.pos) < enemy.radius + wall.radius:
+              wall.hp = 0
+
+        updateBossWeakPoint(enemy, bossDef.weakPoint, game.player.pos, game.screenWidth, game.screenHeight, dt)
+        updateBossMechanics(game, enemy, dt)
+
+        # Count the legion's still-living Royal Guards. While any stand, the
+        # summon attack's countdown is frozen, so the loop is: summon -> player
+        # slays the guards -> countdown starts -> countdown ends -> summon again.
+        # The rank and file never hold it (an ignored crowd is capped at the
+        # summon instead), so one straggler can't stall the fight.
+        let livingGuards = livingRoyalGuardCount(game)
+
+        # Summoner King: drive the objective from the live guard count (single
+        # source of truth - no desync). Pips show how many guards have fallen;
+        # the last one opens the vulnerability window. Gated to the summon objective.
+        if enemy.summonWaveActive and enemy.weakPoint.kind == bwoSummonSigils:
+          enemy.weakPoint.progress = max(0, enemy.weakPoint.required - livingGuards)
+          if livingGuards == 0:
+            let summonWindow = openBossSummonWindow(enemy)
+            if summonWindow.opened:
+              enemy.summonWaveActive = false
+              enemy.weakPoint.required = 0  # hide the cleared pips during the window
+              if summonWindow.bonusDamage > 0:
+                let dealt = applyEnemyHpDamage(enemy, summonWindow.bonusDamage)
+                if dealt > 0:
+                  showDamage(game, enemy.pos, dealt, true, false, dtArcane)
+                  addShake(game.dopamine.screenShake, siLarge)
+
+        tickBossAttacks(game, enemy, bossDef, dt)
+
+        # Drive any in-flight spiral volley armed by bapSpiral. This emits one step
+        # per frame independent of the attack cooldown, which is what makes the
+        # bullet trail an actual spiral rather than a ring.
+        updateBossSpiralStream(game, enemy, dt)
+
+      # Regular enemy shooting (config-driven system)
+      fireConfiguredEnemyShot(game, enemy)
+
+    # Its body hurts every player it touches, each on their own cooldown.
+    for victim in game.livingPlayers:
+      withPlayer(game, victim):
+        # Check collision with player (with small coyote/forgiveness zone on edges)
+        # Reduce effective collision radius by 10% for slight edge forgiveness
+        let effectivePlayerRadius = game.player.radius * 0.90  # 10% reduction = coyote
+        if distance(enemy.pos, game.player.pos) < enemy.radius + effectivePlayerRadius:
           if enemy.isBoss:
-            if enemy.hp < EnemyMinAliveHp:
-              discard tryAdvanceBossPhase(game, enemy)
-          elif enemy.hp < EnemyMinAliveHp:
-            # Flush any accumulated contact damage before death
-            flushAccumulatedContactDamage(game, enemy)
+            # Boss deals continuous damage: 10% of the player's max HP per second.
+            # Damage applied each tick is DPS * elapsed_time (capped to the intended interval)
+            # A Juggernaut charge that connects hits for the charge's own damage
+            # instead: being run over IS the attack. The shared 0.5 s gate keeps it
+            # to one hit per pass (the body crosses the player in well under that).
+            let chargeImpact = enemy.chargeState == ccCharging and enemy.isDashing
+            if game.time - enemy.lastContactWith(game.player.slot) >= 0.5:
+              let elapsed = min(game.time - enemy.lastContactWith(game.player.slot), 0.5'f32)
+              let bossDps = 0.10'f32 * game.player.maxHp
+              var bossContactDamage = if chargeImpact: enemy.chargeDamage
+                                      else: bossDps * elapsed
+              if modsActive:
+                bossContactDamage = modEnemyContact(enemy, bossContactDamage * enemyDamageDealtMult(enemy))
+
+              let playerDied = takeDamage(game.player, bossContactDamage)
+              trackDamageAvoided(game)
+
+              # Thorns reflects a hit that landed. Resolved after takeDamage so a hit
+              # that invincibility, a shield charge or a dodge stopped reflects nothing.
+              if game.player.lastDamageTaken > 0:
+                discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
+
+              # Pulse Armor knockback is handled centrally by the trigger block in
+              # updateGame (takeDamage above sets the -1 trigger flag).
+
+              if playerDied:
+                beginPlayerDeathSequence(game, dcBossContact, source = enemy)
+
+              # Track boss contact damage for statistics
+              trackPlayerDamage(game, enemy.enemyType)
+
+              # Create damage number for boss contact damage
+              game.showPlayerDamageTaken(dtDefault)
+
+              playSound(stPlayerHit, 0.6)
+              enemy.setLastContactWith(game.player.slot, game.time)
+              spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Red,
+                                   (if chargeImpact: 24 else: 10))
+              if chargeImpact:
+                addShake(game.dopamine.screenShake, siLarge)
+          else:
+            # Regular enemies deal contact damage with cooldown
+            if game.time - enemy.lastContactWith(game.player.slot) >= 0.33:  # Contact damage cooldown
+              var enemyContactDamage = enemy.contactDamage.float32  # Damage enemy deals to player
+              if modsActive:
+                enemyContactDamage = modEnemyContact(enemy, enemyContactDamage * enemyDamageDealtMult(enemy))
+
+              let playerDied = takeDamage(game.player, enemyContactDamage)
+              trackDamageAvoided(game)
+              # Both on-hit effects below need a hit that landed: a touch that
+              # invincibility, a shield charge or a dodge stopped neither poisons the
+              # player nor reflects Thorns damage.
+              let contactLanded = game.player.lastDamageTaken > 0
+
+              # Venomous elite effect - applies poison to player
+              # Handles multiple elite types (wave 25+)
+              if contactLanded and enemy.isElite and etVenomous in enemy.eliteTypes:
+                game.player.poisonTimer = 3.0  # 3 seconds of poison
+                game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage
+                game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
+                game.player.poisonSourceType = enemy.enemyType  # Track source for stats
+                spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 10)
+
+              # Thorns reflection damage - damages enemy but doesn't kill instantly
+              if contactLanded:
+                discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
+
+              # Pulse Armor knockback is handled centrally by the trigger block in
+              # updateGame (takeDamage above sets the -1 trigger flag).
+
+              if playerDied:
+                beginPlayerDeathSequence(game, dcContact, source = enemy)
+
+              # Track enemy contact damage for statistics
+              trackPlayerDamage(game, enemy.enemyType)
+
+              # Create damage number for player taking damage
+              game.showPlayerDamageTaken(dtDefault)
+
+              playSound(stPlayerHit, 0.5)
+
+              # Deal contact damage to enemy based on player damage stat, speed, and crits
+              let (contactDamageToEnemy, contactWasCrit) = calculateContactDamageToEnemy(game.player, enemy)
+
+              # Ramming a Port Guard's raised shield does nothing to it
+              let rammedShield = shieldBlocksHit(game, enemy, game.player.pos)
+
+              # Stars use hit counter for all damage sources
+              if enemy.enemyType == etStar:
+                enemy.hitCount += 1
+              elif not rammedShield:
+                discard damageEnemy(enemy, contactDamageToEnemy)
+
+              enemy.setLastContactWith(game.player.slot, game.time)
+
+              # Accumulate damage for damage number display (shows every 0.5s)
+              # Crits shown immediately and in the right color
+              if rammedShield:
+                discard
+              elif contactWasCrit:
+                showDamage(game, enemy.pos, contactDamageToEnemy, true, true, dtCritical)
+              else:
+                accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
+
+              # Visual feedback, more particles for crits
+              let contactParticleCount = if contactWasCrit: 8 else: 3
+              spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, contactParticleCount)
+
+              # Enemies are never deleted here. All death bookkeeping -- coins, XP,
+              # the kill count and statistics, combo, lifesteal, the Star and
+              # Explosive-elite death blasts, and for bosses the phase break and
+              # wave flow -- lives in the main enemy update loop, and a contact
+              # kill is picked up there next frame like every other kill (deleting
+              # it here silently threw all of that away).
+              # The boss arm uses the alive threshold, not `<= 0`, so a phase pool
+              # left with sub-threshold float residue still breaks into the next
+              # phase instead of reaching the update loop looking defeated.
+              if enemy.isBoss:
+                if enemy.hp < EnemyMinAliveHp:
+                  discard tryAdvanceBossPhase(game, enemy)
+              elif enemy.hp < EnemyMinAliveHp:
+                # Flush any accumulated contact damage before death
+                flushAccumulatedContactDamage(game, enemy)
 
     enemyIdx += 1
 
   if bossDefeated and game.mode == gmRoguelite:
-    # KernelExploit: boss defeat grants +20% permanent damage
-    if hasPowerUp(game.player, puKernelExploit):
-      game.player.damage *= 1.20'f32
-      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                           Color(r: 180, g: 80, b: 255, a: 255), 40)
-      addShake(game.dopamine.screenShake, siMedium, Color(r: 180, g: 80, b: 255, a: 255))
+    # KernelExploit: boss defeat grants +20% permanent damage (to each player
+    # who owns it)
+    for p in game.players:
+      withPlayer(game, p):
+        if hasPowerUp(game.player, puKernelExploit):
+          game.player.damage *= 1.20'f32
+          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                               Color(r: 180, g: 80, b: 255, a: 255), 40)
+          addShake(game.dopamine.screenShake, siMedium, Color(r: 180, g: 80, b: 255, a: 255))
     let prevShards = game.rogueliteRun.shardsEarned
     let prevCores  = game.rogueliteRun.coresEarned
     let survivalWasUnlocked = not globalSettings.isNil and globalSettings.survivalUnlocked
@@ -4050,7 +4480,7 @@ proc updateBossSatellites(game: var Game, dt: float32) =
           if not enemy.satellites[i].laserActive:
             # Start charging laser - lock onto current player position
             enemy.satellites[i].laserActive = true
-            enemy.satellites[i].laserTarget = game.player.pos
+            enemy.satellites[i].laserTarget = game.currentQuarry(enemy).pos   # the player its boss hunts
             enemy.satellites[i].laserChargeTime = 0.0
             enemy.satellites[i].activeWarning = nil  # fresh telegraph for this cycle
             enemy.satellites[i].shootTimer = 4.5 + rand(1.0)  # Time until next laser cycle
@@ -4192,6 +4622,7 @@ proc resolveBulletEnemyHit(game: var Game, bullet: Bullet, target: Enemy, echoPa
   var hitEnemy = false
   # Mark this enemy as hit by this bullet (using enemy ID, not index)
   bullet.hitEnemies.add(target.id)
+  target.lastHitSlot = activeSlot   # the shooter gets the kill (a Star dies by hit count)
   if echoParent != nil and target.id notin echoParent.echoHitEnemies:
     echoParent.echoHitEnemies.add(target.id)
 
@@ -4735,453 +5166,456 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
   var i = 0
   while i < game.bullets.len:
     let bullet = game.bullets[i]
-
-    # Packet Loss patch: some regular enemy rounds never arrive. Rolled once, on
-    # the first frame the round exists; boss attacks are never dropped.
-    if not bullet.fromPlayer and not bullet.packetChecked:
-      bullet.packetChecked = true
-      if packetLoss and not bullet.isBossBullet and rand(1.0'f32) < PacketLossChance:
-        spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                             Color(r: 120, g: 200, b: 255, a: 200), 4)
-        game.bullets.delete(i)
-        continue
-
-    # Homing bullet logic
-    if bullet.isHoming:
-      if bullet.fromPlayer and game.enemies.len > 0:
-        # Player homing bullets track enemies (LEGENDARY - Single Level)
-        # Deliberately weak homing: short range and a low turn rate.
-        let trackingRange = 120.0
-
-        # Find nearest enemy that HASN'T been hit by this bullet yet.
-        # Spatial-grid query: only enemies whose cell is within trackingRange can
-        # qualify, so we test a handful instead of every enemy. The query radius
-        # equals the (centre-to-centre) trackingRange, a non-lossy superset, so the
-        # nearest qualifying enemy is exactly the one the old full scan would pick.
-        var nearestEnemy: Enemy = nil
-        var nearestDist = 999999.0
-
-        for enemyIdx in enemyGrid.nearby(bullet.pos, trackingRange.float32):
-          let enemy = game.enemies[enemyIdx]
-          let dist = distance(bullet.pos, enemy.pos)
-
-          # Only track if within range AND not already hit by this bullet (using enemy ID)
-          if dist < trackingRange and dist < nearestDist and enemy.id notin bullet.hitEnemies:
-            nearestDist = dist
-            nearestEnemy = enemy
-
-        if nearestEnemy != nil:
-          let turnRate = 0.02
-
-          let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
-          let currentDir = bullet.vel.normalize()
-          let newDir = (currentDir * (1.0 - turnRate) + toEnemy * turnRate).normalize()
-          bullet.vel = newDir * bullet.vel.length()
-
-      elif not bullet.fromPlayer:
-        # Enemy homing bullets track the player (etMage magic bullets)
-        let trackingRange = 400.0  # Longer range for enemy homing
-        let dist = distance(bullet.pos, game.player.pos)
-
-        if dist < trackingRange:
-          # Gentle tracking strength for enemy bullets - dodgeable.
-          # Boss homing bullets (Summoner King's Royal Sigils) curve a touch harder
-          # than regular mage bullets, but still stay dodgeable.
-          let turnRate = if bullet.isBossBullet: 0.013'f32 else: 0.009'f32
-
-          let toPlayer = (game.player.pos - bullet.pos).normalize()
-          let currentDir = bullet.vel.normalize()
-          let newDir = (currentDir * (1.0 - turnRate) + toPlayer * turnRate).normalize()
-          bullet.vel = newDir * bullet.vel.length()
-
-    # Use effectiveDt for enemy bullets (slowed by Time Warp), normal dt for player bullets
-    let bulletDt = if bullet.fromPlayer: dt else: effectiveDt
-
-    # Nova: frozen player bullets don't move or expire
-    if bullet.isFrozenByNova and bullet.fromPlayer:
-      # Suspended bullets are otherwise indistinguishable from stuck ones. A
-      # sparse frost mote (probabilistic, so the cost stays flat regardless of
-      # how many bullets are held) sells "held in stasis, still charged".
-      if rand(1.0) < 3.0 * dt:
-        spawnTrailParticlePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                                 Color(r: 200, g: 220, b: 255, a: 255), 2)
-      i += 1
-      continue
-
-    # A mod may move this bullet itself (bulletUpdate); its lifetime still runs.
-    let bulletAlive = if modBulletUpdate(bullet, bulletDt):
-                        bullet.lifetime -= bulletDt
-                        bullet.lifetime > 0
-                      else:
-                        updateBullet(bullet, bulletDt)
-    if not bulletAlive or isOffScreen(bullet, game.screenWidth, game.screenHeight):
-      if not bulletAlive and modsActive:
-        modBulletExpire(bullet)   # its lifetime ran out (bulletExpire, a kind's onExpire)
-      # Track bullet despawn (missed shot) for player bullets only
-      if bullet.fromPlayer:
-        trackBulletDespawn(game, bullet, false)
-      game.bullets.delete(i)
-      continue
-
-    if bullet.fromPlayer and bullet.isExplosive and not bullet.isEcho:
-      let level = getPowerUpLevel(game.player, puExplosiveBullets)
-      # Accumulator-based spawning: no rand() call per frame, deterministic interval
-      let spawnInterval = case level
-        of 1: 0.20   # 5 spawns/sec
-        of 2: 0.13   # ~7.5 spawns/sec
-        else: 0.10   # 10 spawns/sec
-      let particleCount = case level
-        of 1: 2
-        of 2: 2
-        else: 3
-      bullet.particleTrailTimer += bulletDt
-      if bullet.particleTrailTimer >= spawnInterval:
-        bullet.particleTrailTimer -= spawnInterval
-        spawnTrailParticlePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                                 Color(r: 255, g: 150, b: 50, a: 200), particleCount)
-
-    # Update sourceEnemyPos to track the enemy's current position
-    # This ensures parried bullets go to where the enemy last was, not where it shot from
-    if not bullet.fromPlayer and bullet.sourceEnemyId >= 0:
-      for enemy in game.enemies:
-        if enemy.id == bullet.sourceEnemyId:
-          bullet.sourceEnemyPos = enemy.pos
-          break
-
-    # Echo Shots - spawn ghost trail bullets (LEGENDARY)
-    # Capped per parent bullet: echo output otherwise scales with bullet lifetime,
-    # so piercing/ricochet (which keep a bullet alive for the whole screen) would
-    # trail an unbounded number of 25% echoes. The count is inherited by clones
-    # (split fragments) so those can't reset the budget either.
-    if bullet.fromPlayer and not bullet.isEcho and bullet.echoSpawnCount < ECHO_MAX_SPAWNS and
-        hasPowerUp(game.player, puEchoShots):
-      # Ensure parent bullet has an ID for tracking
-      if bullet.bulletId == 0:
-        assignBulletId(game, bullet)
-
-      bullet.echoTrailTimer += bulletDt
-
-      let spawnInterval = 0.10
-      let echoDamageMultiplier = 0.25
-
-      if bullet.echoTrailTimer >= spawnInterval:
-        bullet.echoTrailTimer = 0.0
-
-        # Create echo bullet
-        createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.45)
-        bullet.echoSpawnCount += 1
-
-    # Check rotating shield collision
-    if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
-      let level = getPowerUpLevel(game.player, puRotatingShield)
-      let shieldCount = 3  # Always 3 shields regardless of level
-      let shieldRadius = game.player.radius * 2.5 + 15  # Reduced from +15 to +10
-      var hitShield = false
-      var hitShieldIndex = -1
-
-      # Level-based coverage
-      let arcCoverage = case level
-        of 1: 0.30  # 30% coverage
-        of 2: 0.35  # 35% coverage
-        else: 0.40  # 40% coverage
-
-      # Check collision with shield arcs (with gaps)
-      for j in 0..<shieldCount:
-        # Skip destroyed shields
-        if j < game.player.shieldHealths.len and game.player.shieldHealths[j] <= 0:
-          continue
-
-        let baseAngle = game.player.shieldAngle + (j.float32 * PI * 2.0 / shieldCount.float32)
-        let fullArcLength = PI * 2.0 / shieldCount.float32
-        let activeArcLength = fullArcLength * arcCoverage
-
-        # Center the active arc portion, leaving gaps at the edges
-        let gapSize = (fullArcLength - activeArcLength) / 2.0
-        let angle1 = baseAngle + gapSize
-        let angle2 = angle1 + activeArcLength
-
-        # Check multiple points along the ACTIVE portion of the arc
-        for k in 0..12:  # Reduced from 16 to 12 points for thinner coverage
-          let t = k.float32 / 12.0
-          let angle = angle1 + t * (angle2 - angle1)
-          let shieldX = game.player.pos.x + cos(angle) * shieldRadius
-          let shieldY = game.player.pos.y + sin(angle) * shieldRadius
-          let shieldPos = vec2(shieldX, shieldY)
-
-          if distance(bullet.pos, shieldPos) < bullet.radius + 4:  # Reduced from +6 to +4
-            hitShield = true
-            hitShieldIndex = j
-            playSound(stShield, 0.4)
-            spawnExplosionPooled(game.particlePool, shieldX, shieldY, Color(r: 0, g: 255, b: 255, a: 255), 8)  # Cyan explosion
-            break
-
-        if hitShield:
-          break
-
-      if hitShield and hitShieldIndex >= 0:
-        # Damage the specific shield
-        if hitShieldIndex < game.player.shieldHealths.len:
-          game.player.shieldHealths[hitShieldIndex] -= 1.0
-          # Reset regen timer for this shield
-          if hitShieldIndex < game.player.shieldRegenTimers.len:
-            game.player.shieldRegenTimers[hitShieldIndex] = 0.0
-        game.bullets.delete(i)
-        continue
-
-    # Check bullet-enemy collision
-    var hitEnemy = false
-    if bullet.fromPlayer:
-      # Candidate enemies for this bullet, from the spatial grid: those whose cell
-      # is within hit range (bullet.radius + the largest enemy radius on screen),
-      # PLUS every boss. Bosses are always included because a boss weak-point target
-      # can sit beyond the body radius the grid keys on. After sorting + de-duping,
-      # iterating `gridCandidates` is identical to the old `0..<enemies.len` scan
-      # *restricted to in-range enemies*, in the same ascending index order -- and
-      # that is the same behaviour as the full scan, because the only gate before
-      # any state change is the distance test, which every skipped (far) enemy fails.
-      gridCandidates.setLen(0)
-      if game.enemies.len <= GRID_MIN_ENEMIES:
-        # Few enemies on screen: a full scan is already cheap, and skipping the
-        # grid query + sort + dedup avoids any per-bullet overhead. The resulting
-        # 0..<len index list is inherently sorted and unique -- so this branch is
-        # byte-for-byte the original loop.
-        for idx in 0 ..< game.enemies.len:
-          gridCandidates.add(idx)
-      else:
-        for cand in enemyGrid.nearby(bullet.pos, bullet.radius + gridMaxEnemyRadius):
-          gridCandidates.add(cand)
-        for bossIdx in gridBossIndices:
-          gridCandidates.add(bossIdx)
-        sort(gridCandidates)
-        var uniqueLen = 0
-        var prevCand = -1
-        for k in 0 ..< gridCandidates.len:
-          let v = gridCandidates[k]
-          if v != prevCand:
-            gridCandidates[uniqueLen] = v
-            inc uniqueLen
-            prevCand = v
-        gridCandidates.setLen(uniqueLen)
-
-      # The echo parent is keyed only by bullet.parentBulletId, which does not depend on
-      # the candidate enemy, so resolve it once per bullet rather than rescanning
-      # game.bullets for every candidate. Bullet is a ref, so the two uses below still
-      # see (and can mutate) the live parent. nil = the parent already despawned, which
-      # matches the old "no match found" path.
-      var echoParent: Bullet = nil
-      if bullet.isEcho and bullet.parentBulletId > 0:
-        for parentBullet in game.bullets:
-          if parentBullet.bulletId == bullet.parentBulletId:
-            echoParent = parentBullet
-            break
-
-      for j in gridCandidates:
-        # Enemy is a ref and the bullet loop never adds or deletes enemies while the
-        # grid is live (see the spatial-grid notes in enemy_helpers), so binding the
-        # candidate once is free and identical to indexing it 79 times.
-        let target = game.enemies[j]
-        # Skip if this bullet already hit this enemy (using enemy ID)
-        if target.id in bullet.hitEnemies:
-          continue
-        if echoParent != nil and
-           (target.id in echoParent.hitEnemies or
-            target.id in echoParent.echoHitEnemies):
-          continue
-
-        if target.isBoss:
-          let objectiveHit = resolveBossWeakPointTargetHit(target, bullet.pos, bullet.radius)
-          if objectiveHit.hit:
-            bullet.hitEnemies.add(target.id)
-            playSound(stEnemyHit, if objectiveHit.wrongTarget: 0.2 else: 0.35)
-            let particleColor = if objectiveHit.wrongTarget:
-              Color(r: 120, g: 80, b: 180, a: 255)
-            elif objectiveHit.completed:
-              Color(r: 255, g: 235, b: 90, a: 255)
-            else:
-              target.color
-            spawnExplosionPooled(game.particlePool, objectiveHit.pos.x, objectiveHit.pos.y,
-                                 particleColor, if objectiveHit.completed: 18 else: 8)
-            if objectiveHit.completed:
-              if objectiveHit.bonusDamage > 0:
-                let dealtObjectiveDamage = applyEnemyHpDamage(target, objectiveHit.bonusDamage)
-                if dealtObjectiveDamage > 0:
-                  showDamage(game, target.pos, dealtObjectiveDamage, true, false, dtArcane)
-              addShake(game.dopamine.screenShake, siLarge)
-            hitEnemy = true
-            break
-
-        # Overload shield: bounce body shots back at the player instead of letting
-        # them through. Only the body is shielded - weak-point targets above still
-        # register - so the player's path is "stop firing into the shield / dodge".
-        if target.isBoss and target.reflectShieldActive and
-            target.weakPoint.exposedTimer <= 0 and not bullet.isEcho and
-            checkBulletEnemyCollision(bullet, target):
-          # The shell turns the literal projectile around rather than spawning a
-          # stand-in: same Bullet object, so element, explosive/piercing flags,
-          # cosmetic skin and shape all survive the trip back. Only ownership,
-          # heading and the two balance knobs below change.
-          let incoming = bullet.vel.length()
-          let backDir =
-            if incoming > 0.001'f32: bullet.vel.normalize() * -1.0'f32
-            else: (game.player.pos - bullet.pos).normalize()
-          bullet.vel = backDir * clamp(incoming * REFLECT_SHIELD_SPEED_MULT,
-                                       REFLECT_SHIELD_SPEED_MIN, REFLECT_SHIELD_SPEED_MAX)
-          bullet.fromPlayer = false
-          bullet.isShieldReflected = true
-          # Keeps its own damage at half strength, floored so pea-shooters still
-          # sting and capped so a crit Overcharge round can't one-shot its owner.
-          bullet.damage = clamp(bullet.damage * REFLECT_SHIELD_DAMAGE_MULT,
-                                REFLECT_SHIELD_DAMAGE,
-                                max(REFLECT_SHIELD_DAMAGE,
-                                    game.player.maxHp * REFLECT_SHIELD_DAMAGE_CAP))
-          bullet.sourceEnemyId = target.id
-          bullet.sourceEnemyPos = target.pos
-          bullet.isParried = false
-          # A shot that has already been in the air for a while would expire before
-          # finishing the now much slower trip home, so refresh its clock.
-          bullet.lifetime = max(bullet.lifetime, REFLECT_SHIELD_BULLET_LIFE)
-          # Impact burst on the shell: cyan flash plus a shockwave marking the turn.
+    # Co-op: a player's shot resolves as its owner (their build, their kills),
+    # an enemy's against the player it is closest to hitting (bulletContext).
+    withPlayer(game, bulletContext(game, bullet)):
+      # Packet Loss patch: some regular enemy rounds never arrive. Rolled once, on
+      # the first frame the round exists; boss attacks are never dropped.
+      if not bullet.fromPlayer and not bullet.packetChecked:
+        bullet.packetChecked = true
+        if packetLoss and not bullet.isBossBullet and rand(1.0'f32) < PacketLossChance:
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                               Color(r: 120, g: 200, b: 255, a: 255), 14)
-          spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, 26.0'f32)
-          break  # leave hitEnemy false so the reflected shot survives as an enemy bullet
+                               Color(r: 120, g: 200, b: 255, a: 200), 4)
+          game.bullets.delete(i)
+          continue
 
-        if checkBulletEnemyCollision(bullet, target):
-          hitEnemy = resolveBulletEnemyHit(game, bullet, target, echoParent, dt)
-          if hitEnemy:
+      # Homing bullet logic
+      if bullet.isHoming:
+        if bullet.fromPlayer and game.enemies.len > 0:
+          # Player homing bullets track enemies (LEGENDARY - Single Level)
+          # Deliberately weak homing: short range and a low turn rate.
+          let trackingRange = 120.0
+
+          # Find nearest enemy that HASN'T been hit by this bullet yet.
+          # Spatial-grid query: only enemies whose cell is within trackingRange can
+          # qualify, so we test a handful instead of every enemy. The query radius
+          # equals the (centre-to-centre) trackingRange, a non-lossy superset, so the
+          # nearest qualifying enemy is exactly the one the old full scan would pick.
+          var nearestEnemy: Enemy = nil
+          var nearestDist = 999999.0
+
+          for enemyIdx in enemyGrid.nearby(bullet.pos, trackingRange.float32):
+            let enemy = game.enemies[enemyIdx]
+            let dist = distance(bullet.pos, enemy.pos)
+
+            # Only track if within range AND not already hit by this bullet (using enemy ID)
+            if dist < trackingRange and dist < nearestDist and enemy.id notin bullet.hitEnemies:
+              nearestDist = dist
+              nearestEnemy = enemy
+
+          if nearestEnemy != nil:
+            let turnRate = 0.02
+
+            let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
+            let currentDir = bullet.vel.normalize()
+            let newDir = (currentDir * (1.0 - turnRate) + toEnemy * turnRate).normalize()
+            bullet.vel = newDir * bullet.vel.length()
+
+        elif not bullet.fromPlayer:
+          # Enemy homing bullets track the player (etMage magic bullets)
+          let trackingRange = 400.0  # Longer range for enemy homing
+          let dist = distance(bullet.pos, game.player.pos)
+
+          if dist < trackingRange:
+            # Gentle tracking strength for enemy bullets - dodgeable.
+            # Boss homing bullets (Summoner King's Royal Sigils) curve a touch harder
+            # than regular mage bullets, but still stay dodgeable.
+            let turnRate = if bullet.isBossBullet: 0.013'f32 else: 0.009'f32
+
+            let toPlayer = (game.player.pos - bullet.pos).normalize()
+            let currentDir = bullet.vel.normalize()
+            let newDir = (currentDir * (1.0 - turnRate) + toPlayer * turnRate).normalize()
+            bullet.vel = newDir * bullet.vel.length()
+
+      # Use effectiveDt for enemy bullets (slowed by Time Warp), normal dt for player bullets
+      let bulletDt = if bullet.fromPlayer: dt else: effectiveDt
+
+      # Nova: frozen player bullets don't move or expire
+      if bullet.isFrozenByNova and bullet.fromPlayer:
+        # Suspended bullets are otherwise indistinguishable from stuck ones. A
+        # sparse frost mote (probabilistic, so the cost stays flat regardless of
+        # how many bullets are held) sells "held in stasis, still charged".
+        if rand(1.0) < 3.0 * dt:
+          spawnTrailParticlePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                   Color(r: 200, g: 220, b: 255, a: 255), 2)
+        i += 1
+        continue
+
+      # A mod may move this bullet itself (bulletUpdate); its lifetime still runs.
+      let bulletAlive = if modBulletUpdate(bullet, bulletDt):
+                          bullet.lifetime -= bulletDt
+                          bullet.lifetime > 0
+                        else:
+                          updateBullet(bullet, bulletDt)
+      if not bulletAlive or isOffScreen(bullet, game.screenWidth, game.screenHeight):
+        if not bulletAlive and modsActive:
+          modBulletExpire(bullet)   # its lifetime ran out (bulletExpire, a kind's onExpire)
+        # Track bullet despawn (missed shot) for player bullets only
+        if bullet.fromPlayer:
+          trackBulletDespawn(game, bullet, false)
+        game.bullets.delete(i)
+        continue
+
+      if bullet.fromPlayer and bullet.isExplosive and not bullet.isEcho:
+        let level = getPowerUpLevel(game.player, puExplosiveBullets)
+        # Accumulator-based spawning: no rand() call per frame, deterministic interval
+        let spawnInterval = case level
+          of 1: 0.20   # 5 spawns/sec
+          of 2: 0.13   # ~7.5 spawns/sec
+          else: 0.10   # 10 spawns/sec
+        let particleCount = case level
+          of 1: 2
+          of 2: 2
+          else: 3
+        bullet.particleTrailTimer += bulletDt
+        if bullet.particleTrailTimer >= spawnInterval:
+          bullet.particleTrailTimer -= spawnInterval
+          spawnTrailParticlePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                   Color(r: 255, g: 150, b: 50, a: 200), particleCount)
+
+      # Update sourceEnemyPos to track the enemy's current position
+      # This ensures parried bullets go to where the enemy last was, not where it shot from
+      if not bullet.fromPlayer and bullet.sourceEnemyId >= 0:
+        for enemy in game.enemies:
+          if enemy.id == bullet.sourceEnemyId:
+            bullet.sourceEnemyPos = enemy.pos
             break
-    else:
-      # Enemy bullet hitting player. A shot whose firer has just been blown up
-      # passes straight through -- it is inert debris waiting for the sweep, and
-      # it is not parryable either, since there is nothing left to parry it at.
-      if checkBulletPlayerCollision(bullet, game.player) and
-         not bossHazardDefused(game, bullet.sourceEnemyId):
-        # Parry - bounce bullets back
-        if game.player.parryActive:
-          # Bounce toward the enemy that shot the bullet
-          # If enemy is dead, bounce toward where it was when it shot
-          var targetPos: Vector2
-          var foundTarget = false
 
-          # Try to find the living enemy that shot this bullet by ID
+      # Echo Shots - spawn ghost trail bullets (LEGENDARY)
+      # Capped per parent bullet: echo output otherwise scales with bullet lifetime,
+      # so piercing/ricochet (which keep a bullet alive for the whole screen) would
+      # trail an unbounded number of 25% echoes. The count is inherited by clones
+      # (split fragments) so those can't reset the budget either.
+      if bullet.fromPlayer and not bullet.isEcho and bullet.echoSpawnCount < ECHO_MAX_SPAWNS and
+          hasPowerUp(game.player, puEchoShots):
+        # Ensure parent bullet has an ID for tracking
+        if bullet.bulletId == 0:
+          assignBulletId(game, bullet)
+
+        bullet.echoTrailTimer += bulletDt
+
+        let spawnInterval = 0.10
+        let echoDamageMultiplier = 0.25
+
+        if bullet.echoTrailTimer >= spawnInterval:
+          bullet.echoTrailTimer = 0.0
+
+          # Create echo bullet
+          createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.45)
+          bullet.echoSpawnCount += 1
+
+      # Check rotating shield collision
+      if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
+        let level = getPowerUpLevel(game.player, puRotatingShield)
+        let shieldCount = 3  # Always 3 shields regardless of level
+        let shieldRadius = game.player.radius * 2.5 + 15  # Reduced from +15 to +10
+        var hitShield = false
+        var hitShieldIndex = -1
+
+        # Level-based coverage
+        let arcCoverage = case level
+          of 1: 0.30  # 30% coverage
+          of 2: 0.35  # 35% coverage
+          else: 0.40  # 40% coverage
+
+        # Check collision with shield arcs (with gaps)
+        for j in 0..<shieldCount:
+          # Skip destroyed shields
+          if j < game.player.shieldHealths.len and game.player.shieldHealths[j] <= 0:
+            continue
+
+          let baseAngle = game.player.shieldAngle + (j.float32 * PI * 2.0 / shieldCount.float32)
+          let fullArcLength = PI * 2.0 / shieldCount.float32
+          let activeArcLength = fullArcLength * arcCoverage
+
+          # Center the active arc portion, leaving gaps at the edges
+          let gapSize = (fullArcLength - activeArcLength) / 2.0
+          let angle1 = baseAngle + gapSize
+          let angle2 = angle1 + activeArcLength
+
+          # Check multiple points along the ACTIVE portion of the arc
+          for k in 0..12:  # Reduced from 16 to 12 points for thinner coverage
+            let t = k.float32 / 12.0
+            let angle = angle1 + t * (angle2 - angle1)
+            let shieldX = game.player.pos.x + cos(angle) * shieldRadius
+            let shieldY = game.player.pos.y + sin(angle) * shieldRadius
+            let shieldPos = vec2(shieldX, shieldY)
+
+            if distance(bullet.pos, shieldPos) < bullet.radius + 4:  # Reduced from +6 to +4
+              hitShield = true
+              hitShieldIndex = j
+              playSound(stShield, 0.4)
+              spawnExplosionPooled(game.particlePool, shieldX, shieldY, Color(r: 0, g: 255, b: 255, a: 255), 8)  # Cyan explosion
+              break
+
+          if hitShield:
+            break
+
+        if hitShield and hitShieldIndex >= 0:
+          # Damage the specific shield
+          if hitShieldIndex < game.player.shieldHealths.len:
+            game.player.shieldHealths[hitShieldIndex] -= 1.0
+            # Reset regen timer for this shield
+            if hitShieldIndex < game.player.shieldRegenTimers.len:
+              game.player.shieldRegenTimers[hitShieldIndex] = 0.0
+          game.bullets.delete(i)
+          continue
+
+      # Check bullet-enemy collision
+      var hitEnemy = false
+      if bullet.fromPlayer:
+        # Candidate enemies for this bullet, from the spatial grid: those whose cell
+        # is within hit range (bullet.radius + the largest enemy radius on screen),
+        # PLUS every boss. Bosses are always included because a boss weak-point target
+        # can sit beyond the body radius the grid keys on. After sorting + de-duping,
+        # iterating `gridCandidates` is identical to the old `0..<enemies.len` scan
+        # *restricted to in-range enemies*, in the same ascending index order -- and
+        # that is the same behaviour as the full scan, because the only gate before
+        # any state change is the distance test, which every skipped (far) enemy fails.
+        gridCandidates.setLen(0)
+        if game.enemies.len <= GRID_MIN_ENEMIES:
+          # Few enemies on screen: a full scan is already cheap, and skipping the
+          # grid query + sort + dedup avoids any per-bullet overhead. The resulting
+          # 0..<len index list is inherently sorted and unique -- so this branch is
+          # byte-for-byte the original loop.
+          for idx in 0 ..< game.enemies.len:
+            gridCandidates.add(idx)
+        else:
+          for cand in enemyGrid.nearby(bullet.pos, bullet.radius + gridMaxEnemyRadius):
+            gridCandidates.add(cand)
+          for bossIdx in gridBossIndices:
+            gridCandidates.add(bossIdx)
+          sort(gridCandidates)
+          var uniqueLen = 0
+          var prevCand = -1
+          for k in 0 ..< gridCandidates.len:
+            let v = gridCandidates[k]
+            if v != prevCand:
+              gridCandidates[uniqueLen] = v
+              inc uniqueLen
+              prevCand = v
+          gridCandidates.setLen(uniqueLen)
+
+        # The echo parent is keyed only by bullet.parentBulletId, which does not depend on
+        # the candidate enemy, so resolve it once per bullet rather than rescanning
+        # game.bullets for every candidate. Bullet is a ref, so the two uses below still
+        # see (and can mutate) the live parent. nil = the parent already despawned, which
+        # matches the old "no match found" path.
+        var echoParent: Bullet = nil
+        if bullet.isEcho and bullet.parentBulletId > 0:
+          for parentBullet in game.bullets:
+            if parentBullet.bulletId == bullet.parentBulletId:
+              echoParent = parentBullet
+              break
+
+        for j in gridCandidates:
+          # Enemy is a ref and the bullet loop never adds or deletes enemies while the
+          # grid is live (see the spatial-grid notes in enemy_helpers), so binding the
+          # candidate once is free and identical to indexing it 79 times.
+          let target = game.enemies[j]
+          # Skip if this bullet already hit this enemy (using enemy ID)
+          if target.id in bullet.hitEnemies:
+            continue
+          if echoParent != nil and
+             (target.id in echoParent.hitEnemies or
+              target.id in echoParent.echoHitEnemies):
+            continue
+
+          if target.isBoss:
+            let objectiveHit = resolveBossWeakPointTargetHit(target, bullet.pos, bullet.radius)
+            if objectiveHit.hit:
+              bullet.hitEnemies.add(target.id)
+              playSound(stEnemyHit, if objectiveHit.wrongTarget: 0.2 else: 0.35)
+              let particleColor = if objectiveHit.wrongTarget:
+                Color(r: 120, g: 80, b: 180, a: 255)
+              elif objectiveHit.completed:
+                Color(r: 255, g: 235, b: 90, a: 255)
+              else:
+                target.color
+              spawnExplosionPooled(game.particlePool, objectiveHit.pos.x, objectiveHit.pos.y,
+                                   particleColor, if objectiveHit.completed: 18 else: 8)
+              if objectiveHit.completed:
+                if objectiveHit.bonusDamage > 0:
+                  let dealtObjectiveDamage = applyEnemyHpDamage(target, objectiveHit.bonusDamage)
+                  if dealtObjectiveDamage > 0:
+                    showDamage(game, target.pos, dealtObjectiveDamage, true, false, dtArcane)
+                addShake(game.dopamine.screenShake, siLarge)
+              hitEnemy = true
+              break
+
+          # Overload shield: bounce body shots back at the player instead of letting
+          # them through. Only the body is shielded - weak-point targets above still
+          # register - so the player's path is "stop firing into the shield / dodge".
+          if target.isBoss and target.reflectShieldActive and
+              target.weakPoint.exposedTimer <= 0 and not bullet.isEcho and
+              checkBulletEnemyCollision(bullet, target):
+            # The shell turns the literal projectile around rather than spawning a
+            # stand-in: same Bullet object, so element, explosive/piercing flags,
+            # cosmetic skin and shape all survive the trip back. Only ownership,
+            # heading and the two balance knobs below change.
+            let incoming = bullet.vel.length()
+            let backDir =
+              if incoming > 0.001'f32: bullet.vel.normalize() * -1.0'f32
+              else: (game.player.pos - bullet.pos).normalize()
+            bullet.vel = backDir * clamp(incoming * REFLECT_SHIELD_SPEED_MULT,
+                                         REFLECT_SHIELD_SPEED_MIN, REFLECT_SHIELD_SPEED_MAX)
+            bullet.fromPlayer = false
+            bullet.isShieldReflected = true
+            # Keeps its own damage at half strength, floored so pea-shooters still
+            # sting and capped so a crit Overcharge round can't one-shot its owner.
+            bullet.damage = clamp(bullet.damage * REFLECT_SHIELD_DAMAGE_MULT,
+                                  REFLECT_SHIELD_DAMAGE,
+                                  max(REFLECT_SHIELD_DAMAGE,
+                                      game.player.maxHp * REFLECT_SHIELD_DAMAGE_CAP))
+            bullet.sourceEnemyId = target.id
+            bullet.sourceEnemyPos = target.pos
+            bullet.isParried = false
+            # A shot that has already been in the air for a while would expire before
+            # finishing the now much slower trip home, so refresh its clock.
+            bullet.lifetime = max(bullet.lifetime, REFLECT_SHIELD_BULLET_LIFE)
+            # Impact burst on the shell: cyan flash plus a shockwave marking the turn.
+            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                 Color(r: 120, g: 200, b: 255, a: 255), 14)
+            spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, 26.0'f32)
+            break  # leave hitEnemy false so the reflected shot survives as an enemy bullet
+
+          if checkBulletEnemyCollision(bullet, target):
+            hitEnemy = resolveBulletEnemyHit(game, bullet, target, echoParent, dt)
+            if hitEnemy:
+              break
+      else:
+        # Enemy bullet hitting player. A shot whose firer has just been blown up
+        # passes straight through -- it is inert debris waiting for the sweep, and
+        # it is not parryable either, since there is nothing left to parry it at.
+        if checkBulletPlayerCollision(bullet, game.player) and
+           not bossHazardDefused(game, bullet.sourceEnemyId):
+          # Parry - bounce bullets back
+          if game.player.parryActive:
+            # Bounce toward the enemy that shot the bullet
+            # If enemy is dead, bounce toward where it was when it shot
+            var targetPos: Vector2
+            var foundTarget = false
+
+            # Try to find the living enemy that shot this bullet by ID
+            if bullet.sourceEnemyId >= 0:
+              for enemy in game.enemies:
+                if enemy.id == bullet.sourceEnemyId:
+                  targetPos = enemy.pos
+                  foundTarget = true
+                  break
+
+            # If source enemy is dead, use the position where bullet was shot from
+            if not foundTarget:
+              targetPos = bullet.sourceEnemyPos
+              foundTarget = true
+
+            # Calculate bounce direction toward target position
+            let bounceDir = if foundTarget:
+              (targetPos - bullet.pos).normalize()
+            else:
+              # Ultimate fallback: bounce away from player (should never happen)
+              (bullet.pos - game.player.pos).normalize()
+
+            bullet.vel = bounceDir * bullet.vel.length()
+            bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
+            bullet.isParried = true  # Mark for statistics tracking
+            if coopActive(): bullet.ownerPlayerIndex = game.player.slot   # the parrier's shot now
+            # It becomes one of the player's projectiles from here, and its hits
+            # are counted as such, so it has to enter the fired count too.
+            bullet.hasCountedHit = false
+            trackBulletFired(game)
+            # A shot the overload shield turned on us can be parried straight back;
+            # clear the marker so it renders as the player's bullet again.
+            bullet.isShieldReflected = false
+
+            # Visual effect for parry bounce
+            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                          Color(r: 255, g: 255, b: 200, a: 255), 12)
+
+            # Bullet continues bouncing, don't delete it
+            i += 1
+            continue
+
+          var bulletDamage = bullet.damage
+          if modsActive:
+            # The shooter's mod statuses (damage dealt), its kind's onHitPlayer, bulletHitPlayer
+            if statusDefs.len > 0 and bullet.sourceEnemyId >= 0:
+              for e in game.enemies:
+                if e.id == bullet.sourceEnemyId:
+                  bulletDamage *= enemyDamageDealtMult(e)
+                  break
+            bulletDamage = modBulletHitPlayer(bullet, bulletDamage)
+
+          let bulletKilledPlayer = takeDamage(game.player, bulletDamage)
+
+          # Thorns reflection - damage the originating enemy (the one that shot the
+          # bullet). Only for a hit that landed: resolved after takeDamage so a shot
+          # that invincibility, a shield charge or a dodge stopped reflects nothing.
+          if game.player.lastDamageTaken > 0 and hasPowerUp(game.player, puThorns):
+            # Find the enemy that shot this bullet using sourceEnemyId
+            var sourceEnemy: Enemy = nil
+            for enemy in game.enemies:
+              if enemy.id == bullet.sourceEnemyId:
+                sourceEnemy = enemy
+                break
+
+            if sourceEnemy != nil:
+              discard applyThornsReflection(game, game.player, bulletDamage, sourceEnemy, "bullet")
+
+          if bulletKilledPlayer:
+            # Resolve the real shooter so a minion's bullet isn't blamed on the boss.
+            var bulletKiller: Enemy = nil
+            for e in game.enemies:
+              if e.id == bullet.sourceEnemyId:
+                bulletKiller = e
+                break
+            beginPlayerDeathSequence(game, dcProjectile, source = bulletKiller,
+                                     sourceType = bullet.sourceEnemyType)
+          # Pulse Armor knockback (on non-lethal hits) is handled centrally by the
+          # trigger block in updateGame (takeDamage sets the -1 trigger flag).
+
+          trackDamageAvoided(game)
+
+          # Track bullet damage for statistics
+          var sourceEnemyType = etEnvironment  # sentinel: no attributable source
           if bullet.sourceEnemyId >= 0:
             for enemy in game.enemies:
               if enemy.id == bullet.sourceEnemyId:
-                targetPos = enemy.pos
-                foundTarget = true
+                sourceEnemyType = enemy.enemyType
                 break
+          trackPlayerDamage(game, sourceEnemyType)
 
-          # If source enemy is dead, use the position where bullet was shot from
-          if not foundTarget:
-            targetPos = bullet.sourceEnemyPos
-            foundTarget = true
+          # Create damage number (enemy to player)
+          # Determine bullet damage type based on bullet properties
+          var bulletDamageType = dtDefault
+          if bullet.isBossBullet:
+            bulletDamageType = dtCritical  # Boss bullets use yellow/critical color
+          elif bullet.isPentagon:
+            bulletDamageType = dtLaser  # Pentagon bullets use purple/laser color
 
-          # Calculate bounce direction toward target position
-          let bounceDir = if foundTarget:
-            (targetPos - bullet.pos).normalize()
-          else:
-            # Ultimate fallback: bounce away from player (should never happen)
-            (bullet.pos - game.player.pos).normalize()
+          game.showPlayerDamageTaken(bulletDamageType)
 
-          bullet.vel = bounceDir * bullet.vel.length()
-          bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
-          bullet.isParried = true  # Mark for statistics tracking
-          # It becomes one of the player's projectiles from here, and its hits
-          # are counted as such, so it has to enter the fired count too.
-          bullet.hasCountedHit = false
-          trackBulletFired(game)
-          # A shot the overload shield turned on us can be parried straight back;
-          # clear the marker so it renders as the player's bullet again.
-          bullet.isShieldReflected = false
-
-          # Visual effect for parry bounce
-          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                        Color(r: 255, g: 255, b: 200, a: 255), 12)
-
-          # Bullet continues bouncing, don't delete it
-          i += 1
-          continue
-
-        var bulletDamage = bullet.damage
-        if modsActive:
-          # The shooter's mod statuses (damage dealt), its kind's onHitPlayer, bulletHitPlayer
-          if statusDefs.len > 0 and bullet.sourceEnemyId >= 0:
-            for e in game.enemies:
-              if e.id == bullet.sourceEnemyId:
-                bulletDamage *= enemyDamageDealtMult(e)
-                break
-          bulletDamage = modBulletHitPlayer(bullet, bulletDamage)
-
-        let bulletKilledPlayer = takeDamage(game.player, bulletDamage)
-
-        # Thorns reflection - damage the originating enemy (the one that shot the
-        # bullet). Only for a hit that landed: resolved after takeDamage so a shot
-        # that invincibility, a shield charge or a dodge stopped reflects nothing.
-        if game.player.lastDamageTaken > 0 and hasPowerUp(game.player, puThorns):
-          # Find the enemy that shot this bullet using sourceEnemyId
-          var sourceEnemy: Enemy = nil
-          for enemy in game.enemies:
-            if enemy.id == bullet.sourceEnemyId:
-              sourceEnemy = enemy
-              break
-
-          if sourceEnemy != nil:
-            discard applyThornsReflection(game, game.player, bulletDamage, sourceEnemy, "bullet")
-
-        if bulletKilledPlayer:
-          # Resolve the real shooter so a minion's bullet isn't blamed on the boss.
-          var bulletKiller: Enemy = nil
-          for e in game.enemies:
-            if e.id == bullet.sourceEnemyId:
-              bulletKiller = e
-              break
-          beginPlayerDeathSequence(game, dcProjectile, source = bulletKiller,
-                                   sourceType = bullet.sourceEnemyType)
-        # Pulse Armor knockback (on non-lethal hits) is handled centrally by the
-        # trigger block in updateGame (takeDamage sets the -1 trigger flag).
-
-        trackDamageAvoided(game)
-
-        # Track bullet damage for statistics
-        var sourceEnemyType = etEnvironment  # sentinel: no attributable source
-        if bullet.sourceEnemyId >= 0:
-          for enemy in game.enemies:
-            if enemy.id == bullet.sourceEnemyId:
-              sourceEnemyType = enemy.enemyType
-              break
-        trackPlayerDamage(game, sourceEnemyType)
-
-        # Create damage number (enemy to player)
-        # Determine bullet damage type based on bullet properties
-        var bulletDamageType = dtDefault
-        if bullet.isBossBullet:
-          bulletDamageType = dtCritical  # Boss bullets use yellow/critical color
-        elif bullet.isPentagon:
-          bulletDamageType = dtLaser  # Pentagon bullets use purple/laser color
-
-        game.showPlayerDamageTaken(bulletDamageType)
-
-        hitEnemy = true
-        spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Red, 8)
-
-    # Check bullet-wall collision (enemy bullets)
-    if not bullet.fromPlayer:
-      for wall in game.walls:
-        if checkBulletWallCollision(bullet, wall):
           hitEnemy = true
-          wall.takeDamage(bullet.damage)  # Full bullet damage
-          trackWallDamaged(game)
-          # Show wall damage number (red to indicate enemy damage to structures)
-          showDamage(game, bullet.pos, bullet.damage, fromPlayer = false,
-                     isCritical = false, damageType = dtDefault)
-          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Brown, 4)
-          break
+          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Red, 8)
 
-    if hitEnemy:
-      game.bullets.delete(i)
-      continue
+      # Check bullet-wall collision (enemy bullets)
+      if not bullet.fromPlayer:
+        for wall in game.walls:
+          if checkBulletWallCollision(bullet, wall):
+            hitEnemy = true
+            wall.takeDamage(bullet.damage)  # Full bullet damage
+            trackWallDamaged(game)
+            # Show wall damage number (red to indicate enemy damage to structures)
+            showDamage(game, bullet.pos, bullet.damage, fromPlayer = false,
+                       isCritical = false, damageType = dtDefault)
+            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Brown, 4)
+            break
 
-    i += 1
+      if hitEnemy:
+        game.bullets.delete(i)
+        continue
+
+      i += 1
 
 proc collectPickup*(game: Game, c: Consumable): bool {.moddable.} =
   ## The player touched consumable `c`: a mod's pickup hook may take it, else
@@ -5252,18 +5686,24 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32) =
       # Update position
       meteorite.pos = meteorite.pos + meteorite.vel * dt
 
-      # Check collision with player while falling
-      if not rockDefused and
-         distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
-        if takeDamage(game.player, meteorite.damage.float32):
-          beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
-        trackDamageAvoided(game)
+      # Check collision with a player while falling (the first one it reaches)
+      var struck: Player = nil
+      if not rockDefused:
+        for p in game.livingPlayers:
+          if distance(meteorite.pos, p.pos) < meteorite.radius + p.radius:
+            struck = p
+            break
+      if not struck.isNil:
+        withPlayer(game, struck):
+          if takeDamage(game.player, meteorite.damage.float32):
+            beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
+          trackDamageAvoided(game)
 
-        # Track meteorite damage
-        trackPlayerDamage(game, etMage)
+          # Track meteorite damage
+          trackPlayerDamage(game, etMage)
 
-        # Create damage number
-        game.showPlayerDamageTaken(dtExplosion)
+          # Create damage number
+          game.showPlayerDamageTaken(dtExplosion)
 
         playSound(stPlayerHit, 0.6)
 
@@ -5306,13 +5746,15 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32) =
         # leave splashDamage at 0, so only the boss rocks blast on landing.
         if meteorite.splashDamage > 0 and not rockDefused:
           let blastR = meteorite.radius * 3.0'f32
-          if distance(impactPos, game.player.pos) < blastR + game.player.radius:
-            if takeDamage(game.player, meteorite.splashDamage):
-              beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
-            trackDamageAvoided(game)
-            trackPlayerDamage(game, etMage)
-            game.showPlayerDamageTaken(dtExplosion)
-            playSound(stPlayerHit, 0.5)
+          for victim in game.livingPlayers:
+            withPlayer(game, victim):
+              if distance(impactPos, game.player.pos) < blastR + game.player.radius:
+                if takeDamage(game.player, meteorite.splashDamage):
+                  beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
+                trackDamageAvoided(game)
+                trackPlayerDamage(game, etMage)
+                game.showPlayerDamageTaken(dtExplosion)
+                playSound(stPlayerHit, 0.5)
 
         # Remove meteorite after impact
         game.meteorites.delete(i)
@@ -5360,48 +5802,31 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32) =
       game.walls.delete(i)
       continue
 
-    # Process turret behavior now in wall module
+    # Process turret behavior now in wall module (a turret fires as its builder)
     let bulletsBeforeTurret = game.bullets.len
-    processWallTurret(game.walls[i], game.enemies, game.bullets, game.player, game.particlePool, dt,
-                      game.screenWidth, game.screenHeight)
-    # Turret rounds are player bullets whose hits are counted, so count them as
-    # fired too. Done here rather than inside wall.nim, which has no game handle.
-    for _ in bulletsBeforeTurret ..< game.bullets.len:
-      trackBulletFired(game)
+    withPlayer(game, game.playerOfSlot(game.walls[i].ownerSlot)):
+      processWallTurret(game.walls[i], game.enemies, game.bullets, game.player, game.particlePool, dt,
+                        game.screenWidth, game.screenHeight)
+      # Turret rounds are player bullets whose hits are counted, so count them as
+      # fired too. Done here rather than inside wall.nim, which has no game handle.
+      for _ in bulletsBeforeTurret ..< game.bullets.len:
+        trackBulletFired(game)
 
     i += 1
 
   # Process pending wall respawns
-  processPendingWallRespawns(game.pendingWallRespawns, game.walls, game.enemies, game.player, game.particlePool, dt)
+  processPendingWallRespawns(game.pendingWallRespawns, game.walls, game.enemies, game.players, game.particlePool, dt)
 
   # Update particles
   updateParticlePool(game.particlePool, dt)
 
-  # Update damage numbers
-  i = 0
-  while i < game.damageNumbers.len:
-    if not updateDamageNumber(game.damageNumbers[i], dt):
-      game.damageNumbers.delete(i)
-      continue
-    i += 1
-
-  i = 0
-  while i < game.currencyIndicators.len:
-    if not updateCurrencyIndicator(game.currencyIndicators[i], dt):
-      game.currencyIndicators.delete(i)
-      continue
-    i += 1
-
-  i = 0
-  while i < game.perkIndicators.len:
-    if not updatePerkIndicator(game.perkIndicators[i], dt):
-      game.perkIndicators.delete(i)
-      continue
-    i += 1
+  updateFloatingText(game, dt)
 
   # This catches edge cases where HP reaches 0 but game didn't transition to game over
-  if game.player.hp <= 0 and game.state == gsPlaying:
-    beginPlayerDeathSequence(game)
+  for p in game.livingPlayers:
+    if p.hp <= 0 and game.state == gsPlaying:
+      withPlayer(game, p):
+        beginPlayerDeathSequence(game)
 
 proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   # Profiling: smoothed wall-clock ms spent here, surfaced in the debug panel so
@@ -5439,7 +5864,8 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
 
   # If boss introduction is active, only allow player movement and particles
   if introActive:
-    updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
+    for p in game.livingPlayers:
+      updatePlayer(p, dt, game.screenWidth, game.screenHeight, game.walls)
 
     # Update particles so visual feedback continues
     updateParticlePool(game.particlePool, dt)
@@ -5453,9 +5879,13 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   # Survival Data Cache reveal: the simulation (and the survival clock) holds
   # still while the opened cache shows what it installed. Its rewards are
   # already applied, so this is presentation only.
-  if isTimeSurvivalMode(game.mode) and game.survival.reveal.active:
-    if updateSurvivalCacheReveal(game, dt):
-      beginDraftResume(game)
+  # A co-op team holds still until every player has seen their own (the host's
+  # team modal resumes it, see updateCoopModal).
+  let teamReveal = not game.coop.isNil and game.coop.modal == cmkCache
+  if isTimeSurvivalMode(game.mode) and (game.survival.reveal.active or teamReveal):
+    if game.survival.reveal.active and updateSurvivalCacheReveal(game, dt):
+      if game.coop.isNil: beginDraftResume(game)
+      else: submitCoopAction(cakDone)
     updateParticlePool(game.particlePool, dt)
     game.time += dt
     game.frameCount += 1
@@ -5504,7 +5934,8 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   if game.mode == gmRoguelite and game.state == gsPlaying:
     let frame = updateDungeon(game, dt)
     if frame.install.level > 0:
-      installPowerUp(game, frame.install)
+      withPlayer(game, game.playerOfSlot(frame.installSlot)):   # on whoever bought it
+        installPowerUp(game, frame.install)
     if frame.checkpoint:
       saveRunState(game)
       deleteSuspendSnapshot(game.mode, game.modMode)  # Boundary: the pre-exit snapshot is stale.
@@ -5529,7 +5960,10 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   var effectiveDt = simDt
   if game.modWorld.enemyTimeSet:
     effectiveDt = simDt * clamp(game.modWorld.enemyTimeScale, 0.0'f32, 2.0'f32)
-  if game.player.timeWarpActive:
+  var anyTimeWarp = false   # (any player's Time Warp slows every enemy)
+  for p in game.players:
+    if p.timeWarpActive: anyTimeWarp = true
+  if anyTimeWarp:
     let slowFactor = 0.5  # 50% slow = 50% speed (single level)
     effectiveDt = simDt * slowFactor
   # Audit Lock (the Hive): the whole room freezes - every enemy and enemy
@@ -5572,7 +6006,9 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   game.frameCount += 1
 
   # Track movement and update run duration for statistics
-  trackMovementFrame(game, dt)
+  for p in game.players:   # (each player's own movement statistics)
+    withPlayer(game, p):
+      trackMovementFrame(game, dt)
 
   game.spawnTimer += dt
 
@@ -5629,6 +6065,7 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   # its own time scale (deathSequenceTimeScale).
   let hpBeforeSim = game.player.hp
   if modsActive: updateModUi(dt)   # open mod screens that let the run go on
+  updateDownedPlayers(game, simDt)   # co-op: the downed come back on the world clock
   modPreUpdate(game, simDt)
   updateAttackWarningsAndLasers(game, simDt)
   updatePlayerAndAuras(game, simDt)
@@ -5672,7 +6109,9 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
     recordDamage(game.dopamine.realTimeStats, frameDamage, game.time)
 
   let hpLost = hpBeforeSim - game.player.hp
-  if game.player.hp > 0 and hpLost > max(1.0'f32, game.player.maxHp * 0.005'f32):
+  # (Not in co-op: it freezes the whole world, every teammate included, each
+  # time one of them is hit.)
+  if not coopActive() and game.player.hp > 0 and hpLost > max(1.0'f32, game.player.maxHp * 0.005'f32):
     triggerHitStop(game.dopamine.slowMotion, 0.075'f32, HitStopScaleHeavy)
 
 # Draw
@@ -6227,6 +6666,85 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     drawStroke(Vector2(x: sx,      y: sy + ds), Vector2(x: sx - ds, y: sy     ), 2.0, dcol)
     drawStroke(Vector2(x: sx - ds, y: sy     ), Vector2(x: sx,      y: sy - ds), 2.0, dcol)
 
+proc drawPlayerActor*(game: Game, playerVisible: bool) {.moddable.} =
+  ## The active player in the arena: Gravity Well's vortex, the auras, the
+  ## body, the re-entry ring and the mod status pips. drawGame draws every
+  ## player of the run through it, this machine's own last (on top).
+  # Draw Gravity Well visual effect
+  if playerVisible and hasPowerUp(game.player, puGravityWell):
+    let pullRadius = 300.0  # Matches actual gameplay pull radius
+
+    # Draw swirling vortex rings
+    for ring in 1..4:
+      let ringRadius = pullRadius * (ring.float32 / 4.0)
+      let alpha = uint8(60 - ring * 10)
+      let rotationOffset = (game.time * (ring.float32 * 0.5)).float32
+
+      # Draw spiral dots around each ring
+      for i in 0..15:
+        let angle = (i.float32 / 16.0) * PI * 2.0 + rotationOffset
+        let x = game.player.pos.x + cos(angle) * ringRadius
+        let y = game.player.pos.y + sin(angle) * ringRadius
+        drawDisc(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
+
+    # Draw outer boundary, 3-pass so the pull limit is always clearly visible
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 4.0,
+                   Color(r: 138, g: 43, b: 226, a: 55))
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 2.0,
+                   Color(r: 138, g: 43, b: 226, a: 90))
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius,
+                   Color(r: 170, g: 80, b: 255, a: 220))
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius - 2.5,
+                   Color(r: 200, g: 140, b: 255, a: 110))
+
+  # UNIFIED AURA RENDERING
+  # Draw all active aura effects using the unified aura system
+  # Each aura draws at its own radius with its own charge sweep, so a player
+  # running several can read every one of them at a glance. Widest first, so the
+  # tighter inner rings stay legible on top.
+  const AURA_TYPES = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
+  if playerVisible:
+    for auraType in AURA_TYPES:
+      if hasPowerUp(game.player, auraType):
+        let level = getPowerUpLevel(game.player, auraType)
+        let config = getAuraConfig(auraType, level)
+        let slot = auraSlotOf(auraType)
+        let mastery = case auraType
+          of puFireAura: game.player.hasFireMastery
+          of puLightningAura: game.player.hasLightningMastery
+          of puPoisonAura: game.player.hasPoisonMastery
+          of puWindAura: game.player.hasWindMastery
+          of puArcaneAura: game.player.hasArcaneMastery
+          of puBloodAura: game.player.hasBloodMastery
+          else: false
+        let interval = getAuraPulseInterval(auraType, level, mastery)
+        # Sweep fills as the timer runs down toward the next pulse
+        let charge = clamp(1.0'f32 - game.player.auraPulseTimers[slot] / interval, 0.0, 1.0)
+        let flash = clamp(game.player.auraFlashTimers[slot] / AuraFlashDuration, 0.0, 1.0)
+        drawAuraEffect(game.player.pos, config, game.time, charge, flash)
+
+  # Draw player
+  if playerVisible:
+    drawPlayer(game.player)
+
+    # Re-entry highlight: a bright pulsing ring on the player for the beat after
+    # a mid-combat draft closes. The shockwave rings from beginDraftResume
+    # expand and leave, which draws the EYE outward; this stays put and answers
+    # "which one of these is me" while the world is still ramping back to speed.
+    if game.draftResumeTimer > 0:
+      let rp = clamp(game.draftResumeTimer / 0.9'f32, 0.0'f32, 1.0'f32)
+      let pulse = 0.55'f32 + 0.45'f32 * sin(game.time * 16.0'f32)
+      let ringA = uint8(clamp(230.0'f32 * rp * pulse, 0.0'f32, 255.0'f32))
+      let ringR = game.player.radius + 10.0'f32 + (1.0'f32 - rp) * 6.0'f32
+      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, ringR,
+                      Color(r: 140, g: 255, b: 215, a: ringA))
+      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, ringR + 3.0'f32,
+                      Color(r: 140, g: 255, b: 215, a: uint8(ringA.int div 2)))
+
+  if playerVisible and game.player.modStatuses.len > 0:
+    drawStatusPips(game.player.pos, game.player.radius + 12, game.player.modStatuses,
+                   wrapPlayer(game.player))
+
 proc drawGame*(game: Game) {.moddable.} =
   # Profiling counterpart to updateGame: smoothed wall-clock ms spent drawing.
   # (game is a ref, so mutating this field through the non-var binding is fine.)
@@ -6368,7 +6886,7 @@ proc drawGame*(game: Game) {.moddable.} =
 
   # Draw walls
   for wall in game.walls:
-    drawWall(wall, game.player)
+    drawWall(wall, game.playerOfSlot(wall.ownerSlot))   # (its builder's turret skin)
 
   # Survival: event zones and telegraphs, spawn markers, Data Caches
   if isTimeSurvivalMode(game.mode):
@@ -6389,11 +6907,15 @@ proc drawGame*(game: Game) {.moddable.} =
   for consumable in game.consumables:
     drawConsumable(consumable)
 
-  # Draw bullets
-  let hasOvercharge = hasPowerUp(game.player, puOvercharge)
-  let hasBloodBullets = hasPowerUp(game.player, puBloodBullets)
+  # Draw bullets (each with its shooter's Overcharge / Blood Bullets look)
+  var hasOvercharge, hasBloodBullets: array[MaxCoopPlayers, bool]
+  for p in game.players:
+    let s = clamp(p.slot.int, 0, MaxCoopPlayers - 1)
+    hasOvercharge[s] = hasPowerUp(p, puOvercharge)
+    hasBloodBullets[s] = hasPowerUp(p, puBloodBullets)
   for bullet in game.bullets:
-    drawBullet(bullet, hasOvercharge, hasBloodBullets, game.time)
+    let s = clamp(ownerSlot(bullet), 0, MaxCoopPlayers - 1)
+    drawBullet(bullet, hasOvercharge[s], hasBloodBullets[s], game.time)
 
   # Boss deallocation sweep, over the warnings/beams/rocks/bullets it is
   # clearing so the edge visibly washes across them, under the living actors.
@@ -6614,80 +7136,21 @@ proc drawGame*(game: Game) {.moddable.} =
 
   let playerVisible = game.state != gsDeathSequence
 
-  # Draw Gravity Well visual effect
-  if playerVisible and hasPowerUp(game.player, puGravityWell):
-    let pullRadius = 300.0  # Matches actual gameplay pull radius
-
-    # Draw swirling vortex rings
-    for ring in 1..4:
-      let ringRadius = pullRadius * (ring.float32 / 4.0)
-      let alpha = uint8(60 - ring * 10)
-      let rotationOffset = (game.time * (ring.float32 * 0.5)).float32
-
-      # Draw spiral dots around each ring
-      for i in 0..15:
-        let angle = (i.float32 / 16.0) * PI * 2.0 + rotationOffset
-        let x = game.player.pos.x + cos(angle) * ringRadius
-        let y = game.player.pos.y + sin(angle) * ringRadius
-        drawDisc(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
-
-    # Draw outer boundary, 3-pass so the pull limit is always clearly visible
-    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 4.0,
-                   Color(r: 138, g: 43, b: 226, a: 55))
-    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 2.0,
-                   Color(r: 138, g: 43, b: 226, a: 90))
-    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius,
-                   Color(r: 170, g: 80, b: 255, a: 220))
-    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius - 2.5,
-                   Color(r: 200, g: 140, b: 255, a: 110))
-
-  # UNIFIED AURA RENDERING
-  # Draw all active aura effects using the unified aura system
-  # Each aura draws at its own radius with its own charge sweep, so a player
-  # running several can read every one of them at a glance. Widest first, so the
-  # tighter inner rings stay legible on top.
-  const AURA_TYPES = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
-  if playerVisible:
-    for auraType in AURA_TYPES:
-      if hasPowerUp(game.player, auraType):
-        let level = getPowerUpLevel(game.player, auraType)
-        let config = getAuraConfig(auraType, level)
-        let slot = auraSlotOf(auraType)
-        let mastery = case auraType
-          of puFireAura: game.player.hasFireMastery
-          of puLightningAura: game.player.hasLightningMastery
-          of puPoisonAura: game.player.hasPoisonMastery
-          of puWindAura: game.player.hasWindMastery
-          of puArcaneAura: game.player.hasArcaneMastery
-          of puBloodAura: game.player.hasBloodMastery
-          else: false
-        let interval = getAuraPulseInterval(auraType, level, mastery)
-        # Sweep fills as the timer runs down toward the next pulse
-        let charge = clamp(1.0'f32 - game.player.auraPulseTimers[slot] / interval, 0.0, 1.0)
-        let flash = clamp(game.player.auraFlashTimers[slot] / AuraFlashDuration, 0.0, 1.0)
-        drawAuraEffect(game.player.pos, config, game.time, charge, flash)
-
-  # Draw player
-  if playerVisible:
-    drawPlayer(game.player)
-
-    # Re-entry highlight: a bright pulsing ring on the player for the beat after
-    # a mid-combat draft closes. The shockwave rings from beginDraftResume
-    # expand and leave, which draws the EYE outward; this stays put and answers
-    # "which one of these is me" while the world is still ramping back to speed.
-    if game.draftResumeTimer > 0:
-      let rp = clamp(game.draftResumeTimer / 0.9'f32, 0.0'f32, 1.0'f32)
-      let pulse = 0.55'f32 + 0.45'f32 * sin(game.time * 16.0'f32)
-      let ringA = uint8(clamp(230.0'f32 * rp * pulse, 0.0'f32, 255.0'f32))
-      let ringR = game.player.radius + 10.0'f32 + (1.0'f32 - rp) * 6.0'f32
-      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, ringR,
-                      Color(r: 140, g: 255, b: 215, a: ringA))
-      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, ringR + 3.0'f32,
-                      Color(r: 140, g: 255, b: 215, a: uint8(ringA.int div 2)))
-
-  if playerVisible and game.player.modStatuses.len > 0:
-    drawStatusPips(game.player.pos, game.player.radius + 12, game.player.modStatuses,
-                   wrapPlayer(game.player))
+  # Every player of the run: teammates first, this machine's own on top. A
+  # downed co-op player shows where they fell and when they come back.
+  for p in game.players:
+    if p.downTimer > 0 and not p.eliminated and playerVisible:
+      let left = clamp(p.downTimer / CoopRespawnDelay, 0.0'f32, 1.0'f32)
+      let pulse = 0.6'f32 + 0.4'f32 * sin(game.time * 6.0'f32)
+      drawCircleOutline(p.pos.x.int32, p.pos.y.int32, p.radius + 6.0'f32,
+                        Color(r: 150, g: 160, b: 180, a: uint8(150.0'f32 * pulse)))
+      drawRing(p.pos, p.radius + 9.0'f32, p.radius + 12.0'f32, -90.0'f32,
+               -90.0'f32 + 360.0'f32 * (1.0'f32 - left), 32, Color(r: 120, g: 255, b: 210, a: 220))
+  for p in game.players:
+    if p != game.player and p.isUp:
+      withPlayer(game, p):
+        drawPlayerActor(game, playerVisible)
+  drawPlayerActor(game, playerVisible and game.player.isUp)
 
   # Foreground particles, such as player muzzle bursts, render over the player.
   drawParticlePoolLayer(game.particlePool, plForeground)
@@ -7059,6 +7522,9 @@ proc drawGame*(game: Game) {.moddable.} =
     if hudCardDefs.len > 0 and not hudHidden(hpRun):
       let mp = getVirtualMousePosition()
       rgY = drawModHudCards(runX, rgY, DockCardW, classic = false, mp.x, mp.y)
+    # Co-op: the teammates and the team's lives
+    if not game.coop.isNil and not hudHidden(hpTeam):
+      rgY = drawCoopTeamStrip(game, runX, rgY, DockCardW) + DockGap
 
     if bossCount > 0:
       const cardGap: int32 = 6
@@ -7172,6 +7638,15 @@ proc drawGame*(game: Game) {.moddable.} =
     drawRectOutline(Rectangle(x: noticeX.float32, y: noticeY.float32, width: noticeW.float32,
                                  height: 22), 1.0, uiLine(Color(r: 255, g: 105, b: 95, a: noticeA)))
     drawText(hudNotice, noticeX + 10, noticeY + 5, 12, uiInk(Color(r: 255, g: 180, b: 170, a: noticeA)))
+
+  # Co-op: the teammates (the widescreen dock has its own card), this
+  # machine's player when down, and a Data Cache's team status.
+  if not game.coop.isNil and not hudHidden(hpAll):
+    if hudStyle == hsLegacy or hudLayout != hlWidescreen:
+      drawCoopTeamStrip(game, vw - 250, 120, 240)
+    drawCoopLocalDown(game)
+    if game.coop.modal == cmkCache:
+      drawCoopModalStatus(game)
 
   endUIScaleMode()   # closes the interface layer opened before the HUD panel
 

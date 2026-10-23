@@ -95,6 +95,7 @@ proc newPlayer*(x, y: float32): Player {.moddable.} =
     dashBurstMult: DashSpeedMult,
     dashTime: DashDuration,
     dashRecharge: DashCooldownTime,
+    arena: BossArenaSeat(band: -1),   # not on the boss-arena field
     pos: vec2(x, y),
     vel: vec2(0, 0),
     radius: 14,
@@ -1185,6 +1186,10 @@ proc takeDamage*(player: Player, damage: float32): bool {.moddable.} =
   ## difficulty scales here so every source (contact, bullets, lasers,
   ## meteors, explosions) is covered without touching each call site.
   ## PvP has its own damage path and is intentionally unaffected.
+  # A downed or eliminated co-op player is out of the fight: nothing lands.
+  if player.downTimer > 0 or player.eliminated:
+    player.lastDamageTaken = 0
+    return false
   var dealt = damage * difficultyEnemyDamageMult()
   # Mod statuses on the player (damageTaken modifiers)
   if player.modStatuses.len > 0:

@@ -158,6 +158,7 @@ type
     hpHints = "hints", hpVignettes = "vignettes", hpDocks = "docks",
     hpDamageNumbers = "damageNumbers", hpCrosshair = "crosshair",
     hpRestorePoints = "restorePoints"  ## the meters and the loss animation; "all" leaves them
+    hpTeam = "team"    ## co-op: the teammates strip and the team modals' status
 
   ModRuntime* = ref object
     ## One successfully started mod.

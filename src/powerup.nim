@@ -796,6 +796,22 @@ proc initPowerUpRollAnimation*(game: Game) {.moddable.} =
     # Final entry is always this slot's actual result
     game.rollPowerUpList[i].add(game.powerUpChoices[i])
 
+proc firstRerollCost*(player: Player): int {.moddable.} =
+  ## What `player`'s first reroll of a fresh draft costs: base 25 credits.
+  ## Patches: Discount Protocol takes 20% off every reroll; Draft Cache makes
+  ## each installer's first one free.
+  result = patchPrice(player, RerollBaseCost)
+  if hasPatch(player, rrtDraftCache):
+    result = 0
+
+proc rerollCostAfter*(player: Player, cost: int): int {.moddable.} =
+  ## The next reroll's price after one at `cost`: +base each time. Patches
+  ## only ever exist in roguelite, so patchPrice is a no-op everywhere else. A
+  ## free Draft Cache reroll (cost 0) steps up to the normal base price rather
+  ## than to base + base.
+  let step = patchPrice(player, RerollBaseCost)
+  if cost <= 0: step else: cost + step
+
 proc attemptRerollPowerUps*(game: Game): bool {.moddable.} =
   ## Try to reroll the power-up options
   ## Returns true if successful, false if insufficient coins
@@ -817,21 +833,10 @@ proc attemptRerollPowerUps*(game: Game): bool {.moddable.} =
   # Initialize reroll animation (same as new power-up selection)
   initPowerUpRollAnimation(game)
 
-  # Next reroll: +base each time. Patches only ever exist in roguelite, so
-  # patchPrice is a no-op everywhere else. A free Draft Cache reroll (cost 0)
-  # steps up to the normal base price rather than to base + base.
-  let step = patchPrice(game.player, RerollBaseCost)
-  if game.rerollCost <= 0:
-    game.rerollCost = step
-  else:
-    game.rerollCost += step
+  game.rerollCost = rerollCostAfter(game.player, game.rerollCost)
 
   return true
 
 proc initializeRerollCost*(game: Game) {.moddable.} =
   ## Initialize the reroll cost at the start of a power-up selection.
-  ## Base cost 25 credits, +25 per reroll. Patches: Discount Protocol takes
-  ## 20% off every reroll; Draft Cache makes each installer's first one free.
-  game.rerollCost = patchPrice(game.player, RerollBaseCost)
-  if hasPatch(game.player, rrtDraftCache):
-    game.rerollCost = 0
+  game.rerollCost = firstRerollCost(game.player)

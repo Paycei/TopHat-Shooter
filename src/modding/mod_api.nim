@@ -17,7 +17,7 @@ import ../types, ../particle_types, ../localization, ../render_context, ../setti
 import ../enemy_config, ../boss_definitions, ../player, ../enemy, ../bullet, ../game/combat, ../game/death, ../game/bosses, ../d_systems, ../particle_pool, ../sound
 import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics, ../run_save, ../suspend
 import ../statistics, ../roguelite
-import ../game3d/types_3d
+import ../game3d/types_3d, ../coop/coop_context
 import mod_assets, mod_media
 import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep, mod_registry
 
@@ -1201,9 +1201,10 @@ proc installContentLibraries(base: ScriptTable) =
       vm.argError("hurt", 2, "options must be a table")
     let lethal = takeDamage(p, max(0.0, vm.checkNum(args, 1, "hurt")).float32)
     let g = modCtx.game
-    if lethal and cause.len > 0 and not g.isNil and g.player == p and g.state == gsPlaying:
+    if lethal and cause.len > 0 and not g.isNil and p in g.players and g.state == gsPlaying:
       g.modWorld.deathLabel = cause
-      beginPlayerDeathSequence(g, dcMod)
+      withPlayer(g, p):   # (any player of a co-op run, not only the active one)
+        beginPlayerDeathSequence(g, dcMod)
     ret.setRet(vbool(lethal))
 
   # ---- run control (queued: carried out after the simulation, this frame)

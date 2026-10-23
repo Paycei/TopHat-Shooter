@@ -48,6 +48,7 @@ import discord_presence  # DiscordClient (no-op flatty overload)
 import particle_types    # ParticlePool  (no-op flatty overload)
 import flatty, supersnappy
 import layout_fp   # layoutSignature, fnv32
+import coop/coop_context   # coopActive: co-op runs never suspend
 
 # ---------------------------------------------------------------------------
 # Custom flatty overloads for runtime-only / unsupported field types.
@@ -198,7 +199,9 @@ proc migrateLegacySuspendSnapshot() =
     echo "Warning: could not migrate legacy suspend snapshot"
 
 proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") {.moddable.} =
-  ## Remove this mode's exact snapshot for the current profile, if any.
+  ## Remove this mode's exact snapshot for the current profile, if any. (Never
+  ## from a co-op run, which shares single player's slots and never saves.)
+  if coopActive(): return
   migrateLegacySuspendSnapshot()
   try:
     let path = getSuspendPath(mode, modMode)
@@ -232,8 +235,9 @@ proc suspendGame*(game: Game) {.moddable.} =
     return
   if game.state notin ResumableStates:
     return
-  # Same exemption as run_save.saveRunState: tutorial sessions never persist.
-  if tutorialSuppressesSaves(game):
+  # Same exemption as run_save.saveRunState: tutorial sessions never persist,
+  # and neither do co-op runs.
+  if tutorialSuppressesSaves(game) or coopActive():
     return
   # Nor does a run a mod made unresumable (modRunResumable), and an older
   # snapshot of it goes, so the desktop never offers it.

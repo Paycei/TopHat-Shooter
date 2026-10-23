@@ -16,7 +16,7 @@
 
 import raylib
 import modding/mod_patch_core
-import particle_types, types, particle_pool, patches
+import particle_types, types, particle_pool, patches, coop/coop_context
 
 const
   LootMargin* = 50.0'f32       ## drops stay this far inside the arena edge
@@ -48,23 +48,43 @@ proc magnetPullsAll*(player: Player): bool {.moddable.} =
 proc updatePickups*[T: Coin | XpOrb | Consumable](game: Game, items: var seq[T], dt: float32): bool =
   ## Expiry, aura/magnet pull and pickup for one kind's list. True when a
   ## collected pickup was the boss wave's coin (completeBossWave is due).
+  ##
+  ## With several players (co-op), each pickup is drawn in by the nearest one
+  ## whose aura reaches it (else the nearest whose magnet pulls everything),
+  ## and collected by the first one touching it, as the active player.
   mixin pickupAlive, pickupTrail, collectPickup
   let count = items.len
-  let magnetAll = magnetPullsAll(game.player)
   var i = 0
   while i < items.len:
     let p = items[i]
     if not pickupAlive(game, p, dt, count):
       items.delete(i)
       continue
-    let inAura = distance(p.pos, game.player.pos) < game.player.auraRadius
-    if inAura or magnetAll:
-      pullTowardPlayer(p.pos, game.player.pos, dt)
-    if inAura:
+    var puller: Player = nil
+    var pullerInAura = false
+    var pullerDist = float32.high
+    for pl in game.livingPlayers:
+      let d = distance(p.pos, pl.pos)
+      let inAura = d < pl.auraRadius
+      if not inAura and not magnetPullsAll(pl): continue
+      if puller.isNil or (inAura and not pullerInAura) or
+         (inAura == pullerInAura and d < pullerDist):
+        puller = pl
+        pullerInAura = inAura
+        pullerDist = d
+    if not puller.isNil:
+      pullTowardPlayer(p.pos, puller.pos, dt)
+    if pullerInAura:
       spawnTimedParticlesPooled(game.particlePool, p.pos.x, p.pos.y, 18.0, pickupTrail(p), 1, dt)
-    if inPickupRange(p.pos, p.radius, game.player):
-      if collectPickup(game, p):
-        result = true
+    var taker: Player = nil
+    for pl in game.livingPlayers:
+      if inPickupRange(p.pos, p.radius, pl):
+        taker = pl
+        break
+    if not taker.isNil:
+      withPlayer(game, taker):
+        if collectPickup(game, p):
+          result = true
       items.delete(i)
       continue
     inc i

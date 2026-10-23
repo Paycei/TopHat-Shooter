@@ -3,7 +3,7 @@ import draw_prims, post_fx
 import particle_types, game/death, types, settings, game, player, coin, bullet_skins, bullet_shapes, shapes, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay, input_intent, game/abilities
 import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_registry, mod_deep, mod_market], ui/mods_window
 import ui/ui_theme, ui/text_field
-import coop/[coop_context, coop_bot]
+import coop/[coop_context, coop_bot], ui/coop_overlay
 import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
 import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
 when defined(debug):
@@ -1452,6 +1452,12 @@ proc main() =
     modWatchState(currentGame)
     postShaderInRun = isActiveRunState(currentGame.state) and currentGame.state != gsModScreen
 
+    # Co-op host: the team modals (drafts, the shop, Data Caches, floor votes)
+    # gather every player's choices here, whichever screen this frame runs.
+    if coopHost():
+      if coopBotEnabled: queueBotModalActions(currentGame, currentGame.frameCount)
+      updateCoopModal(currentGame, dt)
+
     # Mods: a screenUpdate handler returning true takes this frame over (the
     # state's own update and drawing are skipped; screenDraw paints it).
     frameState = currentGame.state
@@ -1954,14 +1960,14 @@ proc main() =
         else: discard
         pendingGameMode = -1  # Reset pending mode
         # Debug: a bot teammate to play the multi-player simulation (--coop-bot).
-        coopRole = crNone
-        localSlot = 0
+        resetCoopContext()
         if coopBotEnabled and currentGame.players.len == 1 and
            currentGame.mode in {gmWaveBased, gmTimeSurvival, gmSandbox} and
            currentGame.state in {gsPlaying, gsCountdown}:
           coopRole = crHost
           discard addCoopPlayer(currentGame, "BOT", settings.playerSkin, settings.bulletSkin,
                                 settings.playerShape, settings.particleEffect, settings.bulletShape)
+          beginCoopRun(currentGame)
         pendingResume = false
 
       # Handle window clicks and check if desktop is blocked. Each window is
@@ -3072,17 +3078,6 @@ proc main() =
           currentGame.selectedRogueliteTheme = (currentGame.selectedRogueliteTheme + 1) mod 3
           markKeyboardUsed(currentGame)
 
-      proc startSelectedTheme() =
-        selectFloorTheme(currentGame, currentGame.selectedRogueliteTheme)
-        currentGame.state = gsCountdown
-        currentGame.countdownTimer = 0.5
-        # The sector's restore point: the whole build as it enters the sector,
-        # after the last guardian's reward and this theme pick, so a Continue
-        # replays this same sector with nothing lost. The sector layout is
-        # rebuilt from the run seed. No-op on a profile without a budget.
-        saveBlockCheckpoint(currentGame)
-        playSound(stMenuSelect)
-
       proc closeRogueliteFloorSelect() =
         let preservedHeat = currentGame.selectedRogueliteHeat
         if currentGame.rogueliteRun != nil and
@@ -3109,7 +3104,7 @@ proc main() =
         statsSavedThisGame = false
 
       if isKeyPressed(Enter) or isKeyPressed(E):
-        if not globalConfirmActive: startSelectedTheme()
+        if not globalConfirmActive: chooseFloor(currentGame, currentGame.selectedRogueliteTheme)
       if isKeyPressed(Q):
         if not globalConfirmActive:
           if settings.exitConfirmEnabled:
@@ -3141,7 +3136,7 @@ proc main() =
         elif isFinalDungeonFloor(currentGame.rogueliteRun):
           if checkCollisionPointRec(mousePos, finalBossCardRect(screenWidth.int32, screenHeight.int32)):
             currentGame.selectedRogueliteTheme = 0
-            startSelectedTheme()
+            chooseFloor(currentGame, currentGame.selectedRogueliteTheme)
         else:
           for i in 0..2:
             let rect = Rectangle(x: (startX + i * (CardW + CardGap)).float32,
@@ -3150,13 +3145,14 @@ proc main() =
                                  height: CardH.float32)
             if checkCollisionPointRec(mousePos, rect):
               currentGame.selectedRogueliteTheme = i
-              startSelectedTheme()
+              chooseFloor(currentGame, currentGame.selectedRogueliteTheme)
               break
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
       themeLayer:
         drawRogueliteFloorSelect(currentGame)
+        drawCoopModalStatus(currentGame)
       endUIScaleMode()
 
       # Draw the confirm dialog on top of everything. Two triggers share it here:
@@ -3178,7 +3174,11 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      if not globalConfirmActive:
+      # Co-op: this machine's player's own purchases, and no more shopping once
+      # they are done (the team is still at it).
+      if not currentGame.coop.isNil:
+        loadShopCounts(currentGame, currentGame.playerOfSlot(localSlot))
+      if not globalConfirmActive and not currentGame.waitingOnTeam:
         # Navigate shop with keyboard
         let shopRows = shopRowCount(currentGame)   # the game's six, then mod rows
         if isKeyPressed(Down) or isKeyPressed(S):
@@ -3212,13 +3212,7 @@ proc main() =
 
           if checkCollisionPointRec(mousePos, L.closeRect()):
             # Close shop and continue to next wave
-            currentGame.cameFromPowerUpSelect = false
-            if currentGame.mode == gmRoguelite:
-              # In the dungeon the shop is a room: just step back into it.
-              currentGame.state = gsPlaying
-            else:
-              currentGame.state = gsCountdown
-              currentGame.countdownTimer = 0.5
+            leaveShop(currentGame)
           else:
             # Check shop item clicks
             var clickedItem = -1
@@ -3231,30 +3225,25 @@ proc main() =
             if clickedItem >= 0:
               # Clicked on an item - select and buy it
               currentGame.selectedShopItem = clickedItem
-              buyShopItem(currentGame, clickedItem)
+              buyFromShop(currentGame, clickedItem)
             elif checkCollisionPointRec(mousePos, L.buyRect()):
               # Clicked the buy button - buy selected item
-              buyShopItem(currentGame, currentGame.selectedShopItem)
+              buyFromShop(currentGame, currentGame.selectedShopItem)
 
         # Buy item with keyboard
         if isKeyPressed(Enter) or isKeyPressed(E):
-          buyShopItem(currentGame, currentGame.selectedShopItem)
+          buyFromShop(currentGame, currentGame.selectedShopItem)
 
         # Close shop - ESC is intentionally not bound here; only the legendary key or the in-window X button may close it.
         if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and not globalConfirmActive:
-          currentGame.cameFromPowerUpSelect = false
-          if currentGame.mode == gmRoguelite:
-            # In the dungeon the shop is a room: just step back into it.
-            currentGame.state = gsPlaying
-          else:
-            currentGame.state = gsCountdown
-            currentGame.countdownTimer = 0.5
+          leaveShop(currentGame)
 
       beginGameDrawing()
       drawGame(currentGame)
       beginUIScaleMode(overlayUIScaleFor(ShopPanelW, ShopPanelH))
       themeLayer:
         drawShop(currentGame)
+        drawCoopModalStatus(currentGame)
       endUIScaleMode()
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
@@ -3445,60 +3434,12 @@ proc main() =
       endGameDrawing()
 
     of gsPowerUpSelect:
+      # Co-op: this machine's player's own roll (rerolls restart the reel).
+      syncLocalDraftView(currentGame)
       let isLegendaryRound = currentGame.powerUpChoices[0].rarity == prLegendary
       let allowedFamiliesForDraft = AllPowerFamilies
-
-      proc continueAfterDraft() =
-        ## Route out of the draft screen. Classic modes visit the between-wave
-        ## shop; the dungeon returns to the room (or the next floor select
-        ## after a floor boss).
-        currentGame.cameFromPowerUpSelect = true
-        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
-          if currentGame.rogueliteRun.pendingFloorSelect:
-            if currentGame.cheatRogueliteDirectFloorSelect:
-              # Cheat "Skip Floor": the boss-room exit portal may be unreachable
-              # (the cheat can fire from any room), so jump straight to floor
-              # select, mirroring what walking into the portal would do.
-              currentGame.cheatRogueliteDirectFloorSelect = false
-              generateThemeChoices(currentGame.rogueliteRun)
-              currentGame.selectedRogueliteTheme = 0
-              currentGame.state = gsRogueliteFloorSelect
-            else:
-              # Floor boss is down: drop the player back into the cleared boss room
-              # with the exit portal open. The descent only happens once they walk
-              # into it (updateDungeon), not automatically.
-              spawnRogueliteExitPortal(currentGame)
-              currentGame.state = gsPlaying
-          else:
-            currentGame.cheatRogueliteDirectFloorSelect = false
-            currentGame.state = gsPlaying
-            beginDraftResume(currentGame)
-        elif currentGame.levelDraftActive or isTimeSurvivalMode(currentGame.mode):
-          # Mid-run XP level-up draft (survival or wave mode): resume into the
-          # same battlefield, not the shop. The shop stays reserved for wave
-          # mode's wave-boundary / post-boss draft below; survival has no shop
-          # at all (its bosses drop Data Caches), so its post-boss draft
-          # returns to the fight too.
-          #
-          # This is the disorienting exit -- the fight is still running and the
-          # player has been looking at a menu -- so it gets the re-entry beat
-          # (time ramp + i-frames + a locate-me pulse). Exits to the shop or to
-          # floor select do not need it: nothing is chasing the player there.
-          let survivalBossReward = isTimeSurvivalMode(currentGame.mode) and
-                                   isLegendaryRound and not currentGame.levelDraftActive
-          currentGame.levelDraftActive = false
-          currentGame.state = gsPlaying
-          beginDraftResume(currentGame)
-          if survivalBossReward:
-            # Survival's restore point: a boss has just closed its phase and its
-            # reward is installed, so a Continue picks the run up right here,
-            # Kernel cache still on the floor. Written after the state change,
-            # so the save does not reopen this draft. Overtime (the final boss's
-            # draft onward) writes nothing: saveBlockCheckpoint refuses a won run.
-            saveBlockCheckpoint(currentGame)
-        else:
-          currentGame.state = gsShop
-          currentGame.shopSidebarScroll = 0
+      # Co-op: picked already, the team is still choosing (the screen waits).
+      let teamWaits = currentGame.waitingOnTeam
 
       tickDesktopToasts(osDesktop, dt)
       for msg in currentGame.pendingToasts:
@@ -3516,10 +3457,10 @@ proc main() =
             currentGame.draftInputGrace <= -DraftReleaseTimeout):
           currentGame.draftAwaitRelease = false
 
-        if not globalConfirmActive and currentGame.draftInputGrace <= 0 and
+        if not globalConfirmActive and not teamWaits and currentGame.draftInputGrace <= 0 and
            not currentGame.draftAwaitRelease:
           if isKeyPressed(Enter) or isKeyPressed(E) or isKeyPressed(Space):
-            continueAfterDraft()
+            pickDraftCard(currentGame, -1)
 
           if isPointerPressed():
             pushUIScale(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
@@ -3530,12 +3471,13 @@ proc main() =
             let L = installerLayout()
             if checkCollisionPointRec(mousePos, L.continueRect()) or
                checkCollisionPointRec(mousePos, L.closeRect()):
-              continueAfterDraft()
+              pickDraftCard(currentGame, -1)
 
         beginGameDrawing()
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         themeLayer:
           drawPowerUpSelectionExhausted(currentGame)
+          drawCoopModalStatus(currentGame)
         endUIScaleMode()
         if globalConfirmActive:
           let r = drawGlobalConfirmDialog()
@@ -3594,7 +3536,7 @@ proc main() =
         # Only allow input after animation completes and confirm dialog is not open.
         # `justSkippedRoll` swallows the keypress that performed the skip, so the
         # Enter that reveals the cards cannot also pick one in the same frame.
-        if currentGame.canSelectPowerUp and not globalConfirmActive and
+        if currentGame.canSelectPowerUp and not globalConfirmActive and not teamWaits and
            not justSkippedRoll and draftInputReady:
           # Navigate power-up choices with keyboard
           if isKeyPressed(Left) or isKeyPressed(A):
@@ -3606,9 +3548,7 @@ proc main() =
 
           # Reroll power-ups with R key
           if isKeyPressed(R):
-            let coinsPreReroll = currentGame.player.coins
-            if attemptRerollPowerUps(currentGame):
-              recordRerollSpent(coinsPreReroll - currentGame.player.coins)
+            if rerollDraft(currentGame):
               markKeyboardUsed(currentGame)
             # If reroll failed (not enough coins), do nothing (could add sound here)
 
@@ -3629,9 +3569,7 @@ proc main() =
 
           # Select power-up with keyboard or mouse click on card
           if isKeyPressed(Enter) or isKeyPressed(E):
-            let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-            installPowerUp(currentGame, chosenPowerUp)
-            continueAfterDraft()
+            pickDraftCard(currentGame, currentGame.selectedPowerUp)
 
           # Mouse click to select
           if isPointerPressed():
@@ -3643,22 +3581,18 @@ proc main() =
 
             if checkCollisionPointRec(mousePos, L.closeRect()):
               # Close installer without picking
-              continueAfterDraft()
+              pickDraftCard(currentGame, -1)
             else:
               # Check card clicks
               for i in 0..2:
                 if checkCollisionPointRec(mousePos, L.cardRect(i)):
                   currentGame.selectedPowerUp = i
-                  let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-                  installPowerUp(currentGame, chosenPowerUp)
-                  continueAfterDraft()
+                  pickDraftCard(currentGame, i)
                   break
 
               # Check reroll button click
               if checkCollisionPointRec(mousePos, L.rerollRect()):
-                let coinsPreReroll = currentGame.player.coins
-                if attemptRerollPowerUps(currentGame):
-                  recordRerollSpent(coinsPreReroll - currentGame.player.coins)
+                rerollDraft(currentGame)
 
           # ESC is intentionally not bound here; only the in-window X button may close
           # this screen without selecting a power-up.
@@ -3667,6 +3601,7 @@ proc main() =
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         themeLayer:
           drawPowerUpSelection(currentGame)
+          drawCoopModalStatus(currentGame)
         endUIScaleMode()
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button

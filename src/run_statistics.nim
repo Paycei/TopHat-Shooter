@@ -186,6 +186,13 @@ proc initRunStatistics(): RunStatistics {.moddable.} =
 var currentRunStats*: RunStatistics = nil
 
 # RUN LIFECYCLE
+proc newRunStatisticsFor*(gameMode: GameMode): RunStatistics {.moddable.} =
+  ## A fresh record for one more player of a co-op run (coop_context keeps one
+  ## per player and makes it the current one while that player is active).
+  result = initRunStatistics()
+  result.gameMode = gameMode
+  result.startTime = $now()
+
 proc startNewRun(gameMode: GameMode) {.moddable.} =
   currentRunStats = initRunStatistics()
   currentRunStats.gameMode = gameMode
@@ -933,19 +940,30 @@ proc trackDamageAvoided*(game: Game) {.moddable.} =
   recordDamageAvoided(game.player.lastDamageAvoided)
 
 # Resource Integration
-proc gainCredits*(game: Game, amount: int) {.moddable.} =
-  ## THE single entry point for credits the player earns in a run: coins,
-  ## combo and perfect-wave bonuses, caches, sector rewards. It pays the wallet
-  ## and books the amount everywhere credits are reported (run stats, the wave
-  ## celebration, the debug panel's coins/minute), so no source goes missing.
-  if amount <= 0: return
-  game.player.coins += amount
+proc bookCredits*(game: Game, amount: int) {.moddable.} =
+  ## Book credits already paid into the wallets in every place credits are
+  ## reported (gainCredits, and coin pickups, which pay per player).
   recordCoinEarned(amount)
   game.dopamine.waveStats.coinsEarned += amount
   game.dopamine.realTimeStats.totalCoins += amount
   if game.dopamine.currentTime > 0:
     game.dopamine.realTimeStats.coinsPerMinute =
       game.dopamine.realTimeStats.totalCoins.float32 / game.dopamine.currentTime * 60.0'f32
+
+proc gainCredits*(game: Game, amount: int) {.moddable.} =
+  ## THE single entry point for credits the player earns in a run: coins,
+  ## combo and perfect-wave bonuses, caches, sector rewards. It pays the wallet
+  ## and books the amount everywhere credits are reported (run stats, the wave
+  ## celebration, the debug panel's coins/minute), so no source goes missing.
+  ##
+  ## A co-op team shares its credits: every player still in the run banks the
+  ## amount in their own wallet (coin.nim's coin pickups apply each player's
+  ## own multipliers instead).
+  if amount <= 0: return
+  for p in game.players:
+    if not p.eliminated:
+      p.coins += amount
+  bookCredits(game, amount)
 
 proc trackShopPurchase*(game: Game, itemName: string, cost: int) {.moddable.} =
   recordCoinSpent(cost, itemName, game.time)

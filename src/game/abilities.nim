@@ -8,7 +8,7 @@
 import raylib, std/deques
 import ../modding/mod_patch_core
 import ../types, ../vec, ../wall, ../powerup, ../particle_pool, ../sound, ../d_systems,
-       ../run_statistics, ../effects, ../input_intent
+       ../run_statistics, ../effects, ../input_intent, ../coop/coop_context
 import ../modding/mod_hooks
 import combat, bullets
 
@@ -22,7 +22,7 @@ proc updateWallPlacement*(game: var Game) {.moddable.} =
   # is not a wall key -- placement fires on RELEASE, so without this every
   # purchase would also drop a wall at the cursor.
   let interactOwnsKey = game.mode == gmRoguelite and
-    (game.dungeonInteractFocus or game.interactKeyLatch)
+    (player.interactFocus or player.interactLatch)
   let eHeld = player.intent.wallHeld and player.walls > 0 and not interactOwnsKey
   game.player.placingWall = eHeld
 
@@ -43,8 +43,8 @@ proc updateWallPlacement*(game: var Game) {.moddable.} =
       trackWallPlacement(game, wallPos)
   # The spent [E] press stops owning the key once it is let go (cleared
   # after the release check above, so that release never places).
-  if game.interactKeyLatch and not player.intent.wallHeld:
-    game.interactKeyLatch = false
+  if player.interactLatch and not player.intent.wallHeld:
+    player.interactLatch = false
 
 proc activateLegendaries*(game: var Game) {.moddable.} =
   ## [Q] was pressed: fire every legendary active the player owns at once.
@@ -344,7 +344,7 @@ proc activateLegendaries*(game: var Game) {.moddable.} =
     game.player.novaCooldown = 16.0
     # Freeze all currently-in-flight player bullets
     for bullet in game.bullets:
-      if bullet.fromPlayer:
+      if bullet.fromPlayer and ownerSlot(bullet) == game.player.slot:   # (the caster's own)
         bullet.isFrozenByNova = true
         # Mark the moment of capture on each bullet, otherwise the freeze
         # is a state change with no on-screen event at all.

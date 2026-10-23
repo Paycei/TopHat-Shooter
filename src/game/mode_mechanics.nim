@@ -19,7 +19,7 @@ import raylib, math, random
 import ../modding/mod_patch_core
 import particle_types, types, enemy, player, bullet, particle_pool, d_systems,
        run_statistics, sound, survival, xp_orb, gamemode_definitions,
-       mode_hazards, game/combat, game/death
+       mode_hazards, game/combat, game/death, coop/coop_context
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -80,32 +80,39 @@ proc offArenaOutbound(game: Game, e: Enemy, margin: float32): bool =
 proc recordPlayerEcho*(game: var Game, aimDir: Vector2, firing: bool, dt: float32) {.moddable.} =
   ## Sample the player's position, aim and trigger at EchoSampleRate Hz into a
   ## ring buffer. Also latches "fired this frame" for the Audit Lock.
-  let mc = addr game.modeCombat
-  mc.echoShotLatch = firing
+  let ec = addr game.player.echo
+  ec.shotLatch = firing
   let cap = echoCapacity()
-  if mc.echo.len != cap:
-    mc.echo = newSeq[EchoSample](cap)
-    for s in mc.echo.mitems:
+  if ec.samples.len != cap:
+    ec.samples = newSeq[EchoSample](cap)
+    for s in ec.samples.mitems:
       s.pos = game.player.pos
-    mc.echoHead = 0
-  mc.echoClock += dt
+    ec.head = 0
+  ec.clock += dt
   let step = 1.0'f32 / EchoSampleRate
   var firedSince = firing
-  while mc.echoClock >= step:
-    mc.echoClock -= step
-    mc.echoHead = (mc.echoHead + 1) mod cap
-    mc.echo[mc.echoHead] = EchoSample(
+  while ec.clock >= step:
+    ec.clock -= step
+    ec.head = (ec.head + 1) mod cap
+    ec.samples[ec.head] = EchoSample(
       pos: game.player.pos,
       aim: if aimDir.length() > 0.01'f32: arctan2(aimDir.y, aimDir.x) else: 0.0'f32,
       fired: firedSince)
     firedSince = false
 
 proc echoSampleAgo(game: Game, seconds: float32): EchoSample =
-  let mc = game.modeCombat
-  if mc.echo.len == 0:
+  let ec = game.player.echo
+  if ec.samples.len == 0:
     return EchoSample(pos: game.player.pos)
-  let back = clamp(int(seconds * EchoSampleRate), 0, mc.echo.len - 1)
-  mc.echo[(mc.echoHead - back + mc.echo.len) mod mc.echo.len]
+  let back = clamp(int(seconds * EchoSampleRate), 0, ec.samples.len - 1)
+  ec.samples[(ec.head - back + ec.samples.len) mod ec.samples.len]
+
+template eachVictim(game: var Game, body: untyped) =
+  ## Run a hazard's hit test `body` for every player in the fight, each as the
+  ## active one (coop_context). In single player: once, for the player.
+  for victim in game.livingPlayers:
+    withPlayer(game, victim):
+      body
 
 proc resetModeCombat*(game: var Game) {.moddable.} =
   ## Drop the transient roster state (a room/horde wipe or a new fight).
@@ -121,8 +128,9 @@ proc interruptBlast(game: var Game, e: Enemy, radius: float32) =
   spawnExplosionPooled(game.particlePool, e.pos.x, e.pos.y, Color(r: 255, g: 150, b: 40, a: 255), 28)
   spawnShockwavePooled(game.particlePool, e.pos.x, e.pos.y, radius)
   addShake(game.dopamine.screenShake, siMedium)
-  if distance(game.player.pos, e.pos) <= radius + game.player.radius:
-    hazardHitPlayer(game, e.contactDamage * 1.5'f32, dcExplosion, dtExplosion, source = e)
+  eachVictim(game):
+    if distance(game.player.pos, e.pos) <= radius + game.player.radius:
+      hazardHitPlayer(game, e.contactDamage * 1.5'f32, dcExplosion, dtExplosion, source = e)
   for other in game.enemies:
     if other.isBoss or other.hp <= 0 or other == e: continue
     if distance(other.pos, e.pos) <= radius + other.radius:
@@ -239,10 +247,11 @@ proc fragmentSlam(game: var Game, frag: Enemy) =
   frag.lastContactDamageTime = game.time
   spawnShockwavePooled(game.particlePool, frag.pos.x, frag.pos.y, FragmentSlamRadius)
   spawnExplosionPooled(game.particlePool, frag.pos.x, frag.pos.y, frag.color, 10)
-  if distance(game.player.pos, frag.pos) <= FragmentSlamRadius + game.player.radius * 0.6'f32:
-    if hazardHitPlayer(game, frag.contactDamage, dcContact, dtDefault, source = frag):
-      addShake(game.dopamine.screenShake, siSmall)
-      playSound(stPlayerHit, 0.4)
+  eachVictim(game):
+    if distance(game.player.pos, frag.pos) <= FragmentSlamRadius + game.player.radius * 0.6'f32:
+      if hazardHitPlayer(game, frag.contactDamage, dcContact, dtDefault, source = frag):
+        addShake(game.dopamine.screenShake, siSmall)
+        playSound(stPlayerHit, 0.4)
 
 proc updateModeMechanics*(game: var Game, dt: float32) {.moddable.} =
   ## Once per frame, before the enemy loop.
@@ -285,7 +294,12 @@ proc updateModeMechanics*(game: var Game, dt: float32) {.moddable.} =
   while h < mc.husks.len:
     mc.husks[h].timer -= dt
     let husk = mc.husks[h]
-    if distance(game.player.pos, husk.pos) <= ZombieReapRadius + game.player.radius:
+    var reaped = false
+    for p in game.livingPlayers:   # any player walking over it
+      if distance(p.pos, husk.pos) <= ZombieReapRadius + p.radius:
+        reaped = true
+        break
+    if reaped:
       # Reaped: a small XP bonus for the walk.
       if game.mode in {gmWaveBased, gmRoguelite, gmTimeSurvival} and not husk.fromBoss:
         game.xpOrbs.add(newXpOrb(husk.pos.x, husk.pos.y, 2))
@@ -328,21 +342,22 @@ proc updateModeMechanics*(game: var Game, dt: float32) {.moddable.} =
   # The mutex mesh: every two armed Deadlocks within DeadlockMaxTether of each
   # other are linked, and a link burns the player crossing it. One shared hit
   # cooldown, so standing in several links at once is still one hit per beat.
-  block mesh:
-    for i in 0..<game.enemies.len:
-      let a = game.enemies[i]
-      if a.enemyType != etDeadlock or a.hp <= 0 or a.isBoss or a.modeTimer < DeadlockArmDelay:
-        continue
-      for j in i + 1 ..< game.enemies.len:
-        let b = game.enemies[j]
-        if b.enemyType != etDeadlock or b.hp <= 0 or b.isBoss or b.modeTimer < DeadlockArmDelay:
+  eachVictim(game):
+    block mesh:
+      for i in 0..<game.enemies.len:
+        let a = game.enemies[i]
+        if a.enemyType != etDeadlock or a.hp <= 0 or a.isBoss or a.modeTimer < DeadlockArmDelay:
           continue
-        if distance(a.pos, b.pos) > DeadlockMaxTether: continue
-        if pointSegmentDistance(game.player.pos, a.pos, b.pos) <=
-             DeadlockTetherHalfWidth + game.player.radius * 0.6'f32:
-          hazardHitPlayer(game, a.contactDamage, dcHazard, dtLaser, source = a,
-                          interval = DeadlockTetherInterval)
-          break mesh
+        for j in i + 1 ..< game.enemies.len:
+          let b = game.enemies[j]
+          if b.enemyType != etDeadlock or b.hp <= 0 or b.isBoss or b.modeTimer < DeadlockArmDelay:
+            continue
+          if distance(a.pos, b.pos) > DeadlockMaxTether: continue
+          if pointSegmentDistance(game.player.pos, a.pos, b.pos) <=
+               DeadlockTetherHalfWidth + game.player.radius * 0.6'f32:
+            hazardHitPlayer(game, a.contactDamage, dcHazard, dtLaser, source = a,
+                            interval = DeadlockTetherInterval)
+            break mesh
 
   # Audit Lock countdown (the freeze itself is applied by game.nim).
   if mc.auditTimer > 0:
@@ -400,15 +415,20 @@ proc pageInQuietly*(game: var Game, w: AttackWarning) {.moddable.} =
   pageInWall(game, w)
 
 proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddable.} =
+  ## One roster hazard's frame. Its hits test every player in the fight
+  ## (eachVictim); a hazard that rides or reads one player -- the Heat
+  ## Emitter, the Audit Lock, the Mirror Cache -- follows the player it was
+  ## aimed at (warningQuarry).
   let age = warningAge(w)
   case w.attackType
   of awtCorruptTile:
     if w.lifetime <= CorruptTileActive:
-      let d = game.player.pos - w.pos
-      if abs(d.x) <= w.bulletRadius + game.player.radius * 0.5'f32 and
-         abs(d.y) <= w.bulletRadius + game.player.radius * 0.5'f32:
-        hazardHitPlayer(game, w.bulletDamage, dcHazard, dtPoison, sourceType = etCorruptor,
-                        interval = CorruptTileInterval)
+      eachVictim(game):
+        let d = game.player.pos - w.pos
+        if abs(d.x) <= w.bulletRadius + game.player.radius * 0.5'f32 and
+           abs(d.y) <= w.bulletRadius + game.player.radius * 0.5'f32:
+          hazardHitPlayer(game, w.bulletDamage, dcHazard, dtPoison, sourceType = etCorruptor,
+                          interval = CorruptTileInterval)
 
   of awtMarchLane:
     if not w.bulletsCreated and w.lifetime <= 0.05'f32:
@@ -416,25 +436,27 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       spawnMarchRank(game, w)
 
   of awtHeatEmitter:
-    # Rides the player, dropping a heat node every HeatNodeSpacing of travel.
+    # Rides its player, dropping a heat node every HeatNodeSpacing of travel.
     let boss = bossOf(game, w)
     if boss.isNil:
       w.lifetime = 0
       return
-    if distance(game.player.pos, w.targetPos) >= HeatNodeSpacing or not w.bulletsCreated:
+    let rider = game.warningQuarry(w)
+    if distance(rider.pos, w.targetPos) >= HeatNodeSpacing or not w.bulletsCreated:
       w.bulletsCreated = true
-      w.targetPos = game.player.pos
-      var node = newAttackWarning(game.player.pos.x, game.player.pos.y, awtHeatTrail,
+      w.targetPos = rider.pos
+      var node = newAttackWarning(rider.pos.x, rider.pos.y, awtHeatTrail,
                                   HeatTrailArm + HeatTrailActive, w.sourceEnemyId)
       node.bulletRadius = w.bulletRadius
       node.bulletDamage = w.bulletDamage
       game.attackWarnings.add(node)
-    w.pos = game.player.pos
+    w.pos = rider.pos
 
   of awtHeatTrail:
     if age >= HeatTrailArm:
-      if distance(game.player.pos, w.pos) <= w.bulletRadius + game.player.radius * 0.6'f32:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtFire, interval = HeatTrailInterval)
+      eachVictim(game):
+        if distance(game.player.pos, w.pos) <= w.bulletRadius + game.player.radius * 0.6'f32:
+          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtFire, interval = HeatTrailInterval)
       # ...and it burns the horde: lead them through it.
       for e in game.enemies:
         if e.isBoss or e.hp <= 0: continue
@@ -446,14 +468,16 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       w.lasersCreated = true
       spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y, Color(r: 255, g: 130, b: 30, a: 255), 26)
       addShake(game.dopamine.screenShake, siSmall)
-      if distance(game.player.pos, w.pos) <= w.bulletRadius + game.player.radius:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtFire)
+      eachVictim(game):
+        if distance(game.player.pos, w.pos) <= w.bulletRadius + game.player.radius:
+          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtFire)
 
   of awtSafeMode:
     if safeModeFlooding(w):
       let (c, r) = safeModeBubble(w)
-      if distance(game.player.pos, c) > r - game.player.radius * 0.5'f32:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane, interval = SafeModeInterval)
+      eachVictim(game):
+        if distance(game.player.pos, c) > r - game.player.radius * 0.5'f32:
+          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane, interval = SafeModeInterval)
       # The flood drags the horde into the bubble with the player.
       for e in game.enemies:
         if e.isBoss or e.hp <= 0: continue
@@ -475,15 +499,20 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       let len = rayWallDistance(w.pos + dir * (boss.radius * 0.6'f32), dir, SearchlightLength, game.walls) +
                 boss.radius * 0.6'f32
       w.ricochetPath[b] = w.pos + dir * len
-      if searchlightLive(w) and
-         pointSegmentDistance(game.player.pos, w.pos, w.ricochetPath[b]) <=
-           SearchlightHalfWidth + game.player.radius * 0.6'f32:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtLaser, interval = SearchlightInterval)
+      if searchlightLive(w):
+        eachVictim(game):
+          if pointSegmentDistance(game.player.pos, w.pos, w.ricochetPath[b]) <=
+               SearchlightHalfWidth + game.player.radius * 0.6'f32:
+            hazardHitPlayer(game, w.bulletDamage, dcLaser, dtLaser, interval = SearchlightInterval)
 
   of awtFileBomb:
     if w.lifetime > FileBombPurgeFlash:
-      # Shred it: walk over it, or shoot it.
-      var shredded = distance(game.player.pos, w.pos) <= FileBombShredRadius + game.player.radius
+      # Shred it: walk over it (any player), or shoot it.
+      var shredded = false
+      for p in game.livingPlayers:
+        if distance(p.pos, w.pos) <= FileBombShredRadius + p.radius:
+          shredded = true
+          break
       if not shredded:
         for b in game.bullets:
           if b.fromPlayer and b.lifetime > 0 and distance(b.pos, w.pos) <= FileBombShredRadius * 0.6'f32:
@@ -499,8 +528,9 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       w.lasersCreated = true
       spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y, Color(r: 160, g: 255, b: 120, a: 255), 22)
       addShake(game.dopamine.screenShake, siSmall)
-      if distance(game.player.pos, w.pos) <= FileBombBlastRadius + game.player.radius * 0.5'f32:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtExplosion)
+      eachVictim(game):
+        if distance(game.player.pos, w.pos) <= FileBombBlastRadius + game.player.radius * 0.5'f32:
+          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtExplosion)
       let offset = rand(PI * 2.0).float32
       for k in 0..<FileBombShrapnel:
         let a = offset + k.float32 * PI * 2.0'f32 / FileBombShrapnel.float32
@@ -535,24 +565,26 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
         spawnExplosionPooled(game.particlePool, boss.pos.x, boss.pos.y, Color(r: 120, g: 255, b: 170, a: 255), 30)
 
   of awtAuditLock:
-    w.pos = game.player.pos
-    if age >= AuditTelegraph:
-      if not w.lasersCreated:
-        # Lock: the room freezes; the player must too.
-        w.lasersCreated = true
-        w.targetPos = game.player.pos
-        game.modeCombat.auditTimer = w.lifetime
-        addShake(game.dopamine.screenShake, siSmall)
-      game.modeCombat.auditTimer = max(game.modeCombat.auditTimer, w.lifetime)
-      if not w.bulletsCreated and age >= AuditTelegraph + AuditGrace:
-        let moved = distance(game.player.pos, w.targetPos) > AuditMoveTolerance
-        if moved or game.modeCombat.echoShotLatch:
-          w.bulletsCreated = true   # breach: one hit per audit
-          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane)
-          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                               Color(r: 255, g: 80, b: 80, a: 255), 18)
-    if w.lifetime <= 0.02'f32:
-      game.modeCombat.auditTimer = 0
+    # Audits the player it was aimed at: they must hold still and hold fire.
+    withPlayer(game, game.warningQuarry(w)):
+      w.pos = game.player.pos
+      if age >= AuditTelegraph:
+        if not w.lasersCreated:
+          # Lock: the room freezes; the player must too.
+          w.lasersCreated = true
+          w.targetPos = game.player.pos
+          game.modeCombat.auditTimer = w.lifetime
+          addShake(game.dopamine.screenShake, siSmall)
+        game.modeCombat.auditTimer = max(game.modeCombat.auditTimer, w.lifetime)
+        if not w.bulletsCreated and age >= AuditTelegraph + AuditGrace:
+          let moved = distance(game.player.pos, w.targetPos) > AuditMoveTolerance
+          if moved or game.player.echo.shotLatch:
+            w.bulletsCreated = true   # breach: one hit per audit
+            hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane)
+            spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                                 Color(r: 255, g: 80, b: 80, a: 255), 18)
+      if w.lifetime <= 0.02'f32:
+        game.modeCombat.auditTimer = 0
 
   of awtPacketLink:
     let train = packetTrain(w)
@@ -560,20 +592,23 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       if not w.bulletsCreated:
         w.bulletsCreated = true
         spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y, Color(r: 0, g: 230, b: 255, a: 255), 8)
-      if pointSegmentDistance(game.player.pos, train.tail, train.head) <=
-           PacketRadius + game.player.radius * 0.7'f32:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtLaser, interval = PacketHitInterval)
+      eachVictim(game):
+        if pointSegmentDistance(game.player.pos, train.tail, train.head) <=
+             PacketRadius + game.player.radius * 0.7'f32:
+          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtLaser, interval = PacketHitInterval)
 
   of awtPageFault:
     if w.lifetime <= PageFaultActive and not w.lasersCreated:
       w.lasersCreated = true
       # The obstacle pages in. Anyone standing in the footprint is crushed
       # (and shoved out of it).
-      if distance(game.player.pos, w.pos) <= w.bulletRadius + game.player.radius:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtExplosion)
-        var away = game.player.pos - w.pos
-        if away.length() < 1.0'f32: away = vec2(1, 0)
-        game.player.pos = w.pos + away.normalize() * (w.bulletRadius + game.player.radius + 4.0'f32)
+      eachVictim(game):
+        if distance(game.player.pos, w.pos) <= w.bulletRadius + game.player.radius:
+          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtExplosion)
+          var away = game.player.pos - w.pos
+          if away.length() < 1.0'f32: away = vec2(1, 0)
+          game.player.pos = w.pos + away.normalize() * (w.bulletRadius + game.player.radius + 4.0'f32)
+          inc game.player.warp   # moved, not walked: a co-op client snaps it
       pageInWall(game, w)
       addShake(game.dopamine.screenShake, siSmall)
 
@@ -583,8 +618,10 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       w.lifetime = 0
       return
     if age >= w.laserDuration:
-      # laserDuration = replay delay; the echo walks the player's past.
-      let s = echoSampleAgo(game, w.laserDuration)
+      # laserDuration = replay delay; the echo walks its player's past.
+      var s: EchoSample
+      withPlayer(game, game.warningQuarry(w)):
+        s = echoSampleAgo(game, w.laserDuration)
       w.targetPos = s.pos
       if w.laserAngles.len == 0: w.laserAngles = @[0.0'f32]
       w.laserAngles[0] = s.aim
@@ -597,18 +634,20 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
           direction = dir, speed = 260.0'f32, damage = w.bulletDamage * 0.6'f32,
           fromPlayer = false, isBossBullet = true, sourceEnemyId = w.sourceEnemyId,
           colorOverride = Color(r: 90, g: 230, b: 210, a: 255)))
-      if age >= w.laserDuration + EchoFadeIn and
-         distance(game.player.pos, s.pos) <= EchoRadius + game.player.radius * 0.6'f32:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane, interval = LaserHitInterval)
+      if age >= w.laserDuration + EchoFadeIn:
+        eachVictim(game):
+          if distance(game.player.pos, s.pos) <= EchoRadius + game.player.radius * 0.6'f32:
+            hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane, interval = LaserHitInterval)
 
   of awtLastKnownGood:
     let sw = w.pos.x * 2.0'f32
     let sh = w.pos.y * 2.0'f32
-    let safe = lkgInDoor(w.bulletCount, game.player.pos, sw, sh)
     if w.lifetime > LkgActive:
       # The purge front burns everything it has passed, except the true door.
-      if age >= LkgReveal and not safe and distance(game.player.pos, w.pos) <= lkgPurgeRadius(w):
-        hazardHitPlayer(game, w.bulletDamage * 0.5'f32, dcLaser, dtArcane, interval = 0.6'f32)
+      eachVictim(game):
+        let safe = lkgInDoor(w.bulletCount, game.player.pos, sw, sh)
+        if age >= LkgReveal and not safe and distance(game.player.pos, w.pos) <= lkgPurgeRadius(w):
+          hazardHitPlayer(game, w.bulletDamage * 0.5'f32, dcLaser, dtArcane, interval = 0.6'f32)
     elif not w.lasersCreated:
       w.lasersCreated = true
       addShake(game.dopamine.screenShake, siLarge)
@@ -617,8 +656,9 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
         let col = if door == w.bulletCount: Color(r: 255, g: 215, b: 110, a: 255)
                   else: Color(r: 255, g: 50, b: 70, a: 255)
         spawnExplosionPooled(game.particlePool, r.x + r.w / 2, r.y + r.h / 2, col, 26)
-      if not safe:
-        hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane)
+      eachVictim(game):
+        if not lkgInDoor(w.bulletCount, game.player.pos, sw, sh):
+          hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane)
 
   else:
     discard

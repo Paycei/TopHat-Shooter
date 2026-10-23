@@ -3,6 +3,7 @@ import modding/mod_patch_core
 import draw_prims
 import particle_types, types, utils, particle, particle_pool, pickup, powerup, sound, run_statistics, game/combat, gamemode_definitions, enemy_config
 import modding/mod_hooks
+import coop/coop_context
 from roguelite import bankMetaCurrency
 
 const RogueliteCoinScale* = 0.45'f32
@@ -203,6 +204,8 @@ proc awardMetaCurrency*(game: Game, shards: int, cores: int = 0) {.moddable.} =
   ## was banked before the cheat menu opened is kept).
   if game.cheatsUsed or not bankMetaCurrency(shards, cores):
     return
+  # A co-op team earns it together: every teammate banks it in their own wallet.
+  pushTeamProfileEvent(game, ProfileEvent(kind: pekMetaBank, a: int32(shards), b: int32(cores)))
   game.metaShardsEarned += max(0, shards)
   game.metaCoresEarned += max(0, cores)
   # Kept live (finalizeRunTracking re-syncs it) because the victory screen's
@@ -222,16 +225,33 @@ proc coinPickupValue*(player: Player, value: int): int {.moddable.} =
   if player.doubleCoinTimer > 0:
     result *= 2
 
+proc gainCoinCredits(game: Game, values: openArray[int]): int =
+  ## Bank coins worth `values`: each player of the run with their own Lucky
+  ## Coins and Double Coin. Returns the active player's share (the pop-up's).
+  for v in values:
+    result += coinPickupValue(game.player, v)
+  if game.players.len <= 1:
+    gainCredits(game, result)
+    return
+  for p in game.players:
+    if p.eliminated: continue
+    var share = 0
+    for v in values:
+      share += coinPickupValue(p, v)
+    p.coins += share
+  if result > 0:
+    bookCredits(game, result)
+
 proc collectAllCoins*(game: Game) {.moddable.} =
   ## Auto-bank every coin on the floor when the room is cleared, applying the
   ## same multipliers as contact pickup (Lucky Coins, Double Coin).
   if game.coins.len == 0: return
-  var totalValue = 0
+  var values: seq[int]
   for coin in game.coins:
-    totalValue += coinPickupValue(game.player, coin.value)
+    values.add coin.value
   game.coins = @[]
+  let totalValue = gainCoinCredits(game, values)
   if totalValue > 0:
-    gainCredits(game, totalValue)
     playSound(stCoinPickup, 0.6)
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x, game.player.pos.y - 18, totalValue, cikCredits))
@@ -243,8 +263,7 @@ proc collectPickup*(game: Game, coin: Coin): bool {.moddable.} =
   let isBossCoin = coin.isBossCoin
   if not isBossCoin and modPickup(game, "coin", coin.value.float64):
     return false
-  let coinValue = coinPickupValue(game.player, coin.value)
-  gainCredits(game, coinValue)
+  let coinValue = gainCoinCredits(game, [coin.value])
   showCurrency(game, coin.pos, coinValue, cikCredits)
   playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
   let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold

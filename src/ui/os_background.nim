@@ -86,6 +86,34 @@ proc getBossArenaCombatBonus*(bg: OSBackgroundState): tuple[damageMult: float32,
     result.damageMult = 1.0
     result.fireRateMult = 1.0
 
+proc loadArenaSeat*(bg: var OSBackgroundState, seat: BossArenaSeat) =
+  ## Put one player's footing on the ring field into the arena state, for the
+  ## field's procs (and the arena's drawing) to read as "the player's".
+  bg.bossArenaDamageCooldown = seat.damageCooldown
+  bg.bossArenaPlayerBand = seat.band
+  bg.bossArenaPlayerOnActive = seat.onActive
+  bg.bossArenaBonusIntensity = seat.bonusIntensity
+  bg.bossArenaPlayerX = seat.x
+  bg.bossArenaPlayerY = seat.y
+
+proc storeArenaSeat*(bg: OSBackgroundState, seat: var BossArenaSeat) =
+  ## Keep what the field's update made of the active player's footing.
+  seat.damageCooldown = bg.bossArenaDamageCooldown
+  seat.band = bg.bossArenaPlayerBand
+  seat.onActive = bg.bossArenaPlayerOnActive
+  seat.bonusIntensity = bg.bossArenaBonusIntensity
+  seat.x = bg.bossArenaPlayerX
+  seat.y = bg.bossArenaPlayerY
+
+proc loadArenaField*(bg: var OSBackgroundState, field: BossArenaField) =
+  ## The ring field as the run has it (a co-op client draws the host's).
+  bg.bossArenaMode = field.mode
+  bg.bossArenaPhase = field.phase
+  bg.bossArenaRotation = field.rotation
+
+proc arenaField*(bg: OSBackgroundState): BossArenaField =
+  BossArenaField(mode: bg.bossArenaMode, phase: bg.bossArenaPhase, rotation: bg.bossArenaRotation)
+
 proc updateBossArenaField*(bg: var OSBackgroundState, dt: float32, playerPos: Vector2,
                            playerRadius: float32, screenWidth, screenHeight: int32,
                            bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32] {.moddable.} =

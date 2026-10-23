@@ -15,7 +15,7 @@
 import std/[strutils, math, tables]
 import raylib
 import ../types, ../particle_types, ../player, ../particle_pool, ../d_systems, ../bullet
-import ../game/[combat, death, things]
+import ../game/[combat, death, things], ../coop/coop_context
 import mod_assets
 import lua_bridge, mod_hooks, mod_reflect, mod_deep, mod_api, mod_registry
 
@@ -115,7 +115,7 @@ proc applyThingFields(vm: VM, th: ModThing, t: ScriptTable, what: string) =
 
 proc defaultThing(): ModThing =
   ModThing(radius: 16, w: 32, h: 32, motion: tmStatic, speed: 120, color: Color(r: 200, g: 200, b: 220, a: 255),
-           scale: 1, layer: tlNormal, team: ttNeutral)
+           scale: 1, layer: tlNormal, team: ttNeutral, playerSlot: activeSlot)
 
 proc copyThing(src: ModThing): ModThing =
   result = ModThing()
@@ -275,15 +275,17 @@ proc explodeAt(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool,
                else: hurtPlayer or hurtEnemies
     if side and overlapsCircle(t, c, r):
       discard damageThing(game, t, dmg, "explosion")
-  if hurtPlayer and game.state == gsPlaying and game.player.hp > 0:
-    let p = game.player
-    let dx = p.pos.x - x
-    let dy = p.pos.y - y
-    let rr = r + p.radius
-    if dx * dx + dy * dy <= rr * rr:
-      let died = takeDamage(p, dmg)
-      if p.lastDamageTaken > 0.001: game.showPlayerDamageTaken(dtDefault)
-      if died: beginPlayerDeathSequence(game, dcHazard)
+  if hurtPlayer and game.state == gsPlaying:
+    for p in game.livingPlayers:   # every player in the blast
+      if p.hp <= 0: continue
+      let dx = p.pos.x - x
+      let dy = p.pos.y - y
+      let rr = r + p.radius
+      if dx * dx + dy * dy <= rr * rr:
+        withPlayer(game, p):
+          let died = takeDamage(p, dmg)
+          if p.lastDamageTaken > 0.001: game.showPlayerDamageTaken(dtDefault)
+          if died: beginPlayerDeathSequence(game, dcHazard)
   spawnExplosionPooled(game.particlePool, x, y, color, clamp(int(r / 3), 8, 60))
   if shake.len > 0:
     try: addShake(game.dopamine.screenShake, parseEnum[ShakeIntensity]("si" & shake.capitalizeAscii))

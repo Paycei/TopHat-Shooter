@@ -21,7 +21,7 @@
 
 import json, os, strutils
 import modding/mod_patch_core
-import particle_types, types, save_system, utils, roguelite, dungeon, powerup, tutorial
+import particle_types, types, save_system, utils, roguelite, dungeon, powerup, tutorial, coop/coop_context
 import modding/[mod_state, mod_hooks, mod_registry], powerup_data
 
 const RunSaveVersion = 1
@@ -80,6 +80,9 @@ proc invalidateBlockCheckpointCache*() {.moddable.} =
 
 proc deleteRunSave*(file: string) {.moddable.} =
   ## Remove one of the current profile's run save files, if present.
+  # A co-op run shares the save slots of single player and never saves: it
+  # must not delete the host's own saved run either.
+  if coopActive(): return
   if isBlockCheckpointFile(file):
     invalidateBlockCheckpointCache()
   try:
@@ -373,6 +376,9 @@ proc saveRunState*(game: Game, file: string = "",
   # A tutorial practice session (or a first run still inside its tutorial) is
   # never a run to resume -- and must not overwrite the player's real save.
   if tutorialSuppressesSaves(game):
+    return
+  # Nor is a co-op run: its teammates can't be brought back.
+  if coopActive():
     return
   # A run a mod made unresumable (register.gamemode resumable = false, or
   # run.resumable = false) keeps no run save, and loses any older one so the
@@ -846,7 +852,7 @@ proc saveBlockCheckpoint*(game: Game, scripted = false, labelEn = "", labelEs = 
   ## run.restorePoints.save (`scripted`) does not, and may name the spot the
   ## Continue button shows (`labelEn` / `labelEs`). True when it was written.
   if game.isNil or not difficultyAllowsContinue(game.mode, game.modMode) or
-     restorePointsOffline(game):
+     restorePointsOffline(game) or coopActive():   # (co-op runs never save)
     return false
   if not scripted and modCheckpointVetoed(game):
     return false
@@ -914,7 +920,10 @@ proc canContinueRun*(game: Game): bool {.moddable.} =
   ## point: the crash screen's Continue, and anything that must defer to it.
   ## The offline check is belt and braces for a run past its win: the win
   ## already deleted its checkpoint and nothing writes a new one.
-  hasBlockCheckpoint(game.mode, game.modMode) and not restorePointsOffline(game)
+  ## A co-op run has none: it never saves (a checkpoint on disk is the host's
+  ## own single-player run).
+  not coopActive() and hasBlockCheckpoint(game.mode, game.modMode) and
+    not restorePointsOffline(game)
 
 proc blockCheckpointResumePoint*(mode: GameMode, modMode: string = ""): int {.moddable.} =
   ## Where Continue picks the run up: the wave (wave mode), sector (roguelite)
@@ -933,6 +942,7 @@ proc patchBlockCheckpoint(mode: GameMode, modMode: string, patch: proc (j: JsonN
   ## Rewrite a few keys of the checkpoint in place. Patching just those keys
   ## (rather than re-serializing the game) keeps the rest of the checkpoint
   ## byte-identical to what was verified good.
+  if coopActive(): return   # (a co-op run never touches the saved checkpoint)
   let file = blockCheckpointFileFor(mode, modMode)
   if file.len == 0:
     return
@@ -953,7 +963,7 @@ proc markCheckpointCurrencyBanked*(game: Game) {.moddable.} =
   ## counters and bank the same shards a second time. Zero them, and carry the
   ## run's banked totals over so the next crash screen reports the whole run.
   ## Wave mode banks every reward as it is earned, so it has nothing to patch.
-  if game.isNil or game.mode != gmRoguelite or game.rogueliteRun.isNil:
+  if game.isNil or game.mode != gmRoguelite or game.rogueliteRun.isNil or coopActive():
     return
   let run = game.rogueliteRun
   patchBlockCheckpoint(gmRoguelite, game.modMode, proc (j: JsonNode) =

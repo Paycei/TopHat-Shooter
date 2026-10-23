@@ -87,6 +87,8 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 {.moddable.} =
   ## gun. Nothing else may add to combat.totalDamageDealt.
   if damage <= 0.0'f32:
     return 0.0'f32
+  # Whoever is dealing this (the active player, coop_context) gets the kill.
+  enemy.lastHitSlot = activeSlot
   # Mods (enemyDamaged) may scale or cancel any damage an enemy takes.
   var damage = damage
   if hookActive(hkEnemyDamaged):
@@ -155,6 +157,7 @@ proc damageEnemy*(enemy: Enemy, baseDamage: float32,
   # Check boss invulnerability (during phase transitions)
   if enemy.isBoss and enemy.invulnerabilityTimer > 0:
     return 0.0
+  if baseDamage > 0: enemy.lastHitSlot = activeSlot   # (a Star's hit never reaches applyEnemyHpDamage)
 
   result = applyEliteModifiers(enemy, baseDamage, consumesDiamondShield)
   result *= bossPassiveDamageTaken(enemy)

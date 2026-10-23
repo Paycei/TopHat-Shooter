@@ -3,6 +3,7 @@ import ../modding/mod_patch_core
 import draw_prims
 import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, pickup, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
 import modding/mod_hooks
+import coop/coop_context
 export utils
 
 const DEATH_SLOW_DURATION* = 1.1'f32
@@ -44,7 +45,12 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) {.mo
   # bonus compounds across every future run (applyPowerUp above already granted
   # the current run its share). Persist immediately so the gain survives a quit.
   # A cheated run keeps the in-run damage but never banks it.
+  # (Co-op: a teammate's own profile and codex are on their own machine.)
+  let ownProfile = game.player.isLocalPlayer
   if powerUp.powerType == puRecursion and game.mode == gmRoguelite and
+     not game.cheatsUsed and not ownProfile:
+    pushProfileEvent(game.player.slot, ProfileEvent(kind: pekRecursion, a: int32(powerUp.level)))
+  elif powerUp.powerType == puRecursion and game.mode == gmRoguelite and
      not game.cheatsUsed and not game.rogueliteProfile.isNil:
     game.rogueliteProfile.recursionDamageBonus += recursionDamageBonusForLevel(powerUp.level)
     # Advance the permanent ladder so future runs (and re-rolls) offer the level
@@ -58,7 +64,9 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) {.mo
   # record (or toast) a "first discovery" from them, so the codex only reflects
   # power-ups earned legitimately in normal play.
   let allowDiscovery = game.mode != gmSandbox and not game.cheatsUsed
-  if allowDiscovery and not globalSettings.isNil and powerName notin globalSettings.discoveredPowerUps:
+  if allowDiscovery and not ownProfile:
+    pushProfileEvent(game.player.slot, ProfileEvent(kind: pekDiscovered, text: powerName))
+  elif allowDiscovery and not globalSettings.isNil and powerName notin globalSettings.discoveredPowerUps:
     globalSettings.discoveredPowerUps.add(powerName)
     discard saveSettings(globalSettings)
     isNewDiscovery = true
@@ -218,11 +226,80 @@ proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
     return (getEnemyConfig(sourceType).name, false)
   return ("", false)
 
+const
+  CoopRespawnDelay* = 4.0'f32   ## seconds a downed co-op player waits to come back
+  CoopRespawnHpFrac = 0.6'f32   ## of their max HP
+  CoopRespawnInvuln = 2.5'f32   ## seconds of safety to find their feet
+
+proc coopTeamWiped*(game: Game): bool {.moddable.} =
+  ## Nobody of the co-op team is left in the run: the run is lost.
+  for p in game.players:
+    if not p.eliminated: return false
+  true
+
+proc coopPlayerDown(game: Game) =
+  ## A co-op player's death: they go down, and come back after a beat if the
+  ## team has a life to spend; with none left they are out of the run.
+  let p = game.player
+  p.hp = 0
+  p.vel = vec2(0, 0)
+  p.timeWarpActive = false
+  p.timeWarpDuration = 0
+  p.poisonTimer = 0
+  p.placingWall = false
+  if game.coop.teamLives == UnlimitedLives or game.coop.teamLives > 0:
+    if game.coop.teamLives > 0:
+      dec game.coop.teamLives
+    p.downTimer = CoopRespawnDelay
+  else:
+    p.eliminated = true
+  game.runHadDeath = true
+  spawnPlayerDeathExplosion(game)
+  addShake(game.dopamine.screenShake, siLarge)
+  playSound(stPlayerHit, 0.9, 0.7)
+
+proc updateDownedPlayers*(game: var Game, dt: float32) {.moddable.} =
+  ## Co-op: count down the downed players and stand each back up next to a
+  ## teammate (the arena's centre if nobody is up), with some HP and a moment
+  ## of invulnerability.
+  if game.coop.isNil: return
+  for p in game.players:
+    if p.eliminated or p.downTimer <= 0: continue
+    p.downTimer -= dt
+    if p.downTimer > 0: continue
+    p.downTimer = 0
+    var buddy: Player = nil
+    for other in game.players:
+      if other != p and other.isUp:
+        buddy = other
+        break
+    p.pos = if buddy.isNil: vec2(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2)
+            else: buddy.pos + vec2(if p.slot > buddy.slot: 36.0'f32 else: -36.0'f32, 0)
+    p.pos.x = clamp(p.pos.x, p.radius, game.screenWidth.float32 - p.radius)
+    p.pos.y = clamp(p.pos.y, p.radius, game.screenHeight.float32 - p.radius)
+    p.vel = vec2(0, 0)
+    p.hp = max(1.0'f32, p.maxHp * CoopRespawnHpFrac)
+    p.invincibilityTimer = max(p.invincibilityTimer, CoopRespawnInvuln)
+    inc p.warp
+    spawnShockwaveRing(game, p.pos, 90.0'f32, Color(r: 120, g: 255, b: 210, a: 255))
+    spawnExplosionPooled(game.particlePool, p.pos.x, p.pos.y, Color(r: 160, g: 255, b: 220, a: 255), 24)
+    playSound(stPowerUp, 0.7, 1.2)
+
 proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
                                source: Enemy = nil, sourceType: EnemyType = etEnvironment) {.moddable.} =
   ## Starts the delayed singleplayer death playback before the game-over screen.
+  ##
+  ## In a co-op run a death takes the active player down instead (a team life
+  ## brings them back, see coopPlayerDown); only a team with nobody left
+  ## plays the death sequence.
   if game.state == gsDeathSequence or game.state == gsGameOver:
     return
+  if not game.coop.isNil:
+    if not game.player.isUp:
+      return   # already down: one death per fall, however many hits land with it
+    coopPlayerDown(game)
+    if not coopTeamWiped(game):
+      return
 
   # Record the killer exactly once. The guard above is the latch: same-frame
   # corpse hits and death-playback collisions re-enter here but return early,

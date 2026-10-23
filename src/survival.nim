@@ -15,7 +15,7 @@ import draw_prims
 import particle_types, types, localization, utils, sound, d_systems, d_visuals, roguelite,
        enemy, enemy_helpers, particle_pool, consumable, coin, pickup, player, powerup,
        powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing,
-       ui/hud_dock, ui/ui_helpers
+       ui/hud_dock, ui/ui_helpers, coop/coop_context
 import modding/[mod_hooks, mod_registry]
 
 # ============================================================================
@@ -658,8 +658,10 @@ proc dropSurvivalCache(game: var Game, pos: Vector2, tier: SurvivalCacheTier) {.
 proc canOpenSurvivalCache(game: Game): bool {.moddable.} =
   ## Same gating as the dungeon's pedestals: only in live play, never on top of
   ## a boss fight or a level-up draft that is about to open.
-  game.state == gsPlaying and game.player.hp > 0 and
+  game.state == gsPlaying and
+    (if game.coop.isNil: game.player.hp > 0 else: game.livingCount > 0) and
     not game.bossWaveManager.active and not game.survival.reveal.active and
+    (game.coop.isNil or game.coop.modal == cmkNone) and
     game.pendingLevelDrafts <= 0 and game.levelDraftDelay <= 0
 
 proc rollCacheLevel(game: var Game): PowerUp =
@@ -676,12 +678,9 @@ proc rollCacheLevel(game: var Game): PowerUp =
   let pt = pool[rand(pool.high)]
   PowerUp(powerType: pt, level: getPowerUpLevel(game.player, pt) + 1, rarity: prCommon)
 
-proc openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2): bool {.discardable, moddable.} =
-  ## Apply a cache's rewards and start its reveal. False: a mod's cacheOpen
-  ## handler took it instead (gone, no rewards of its own, no reveal).
-  if hookActive(hkCacheOpen) and modCacheOpen(game, $tier, at.x, at.y):
-    return false
-  result = true
+proc rollCacheReveal(game: var Game, tier: SurvivalCacheTier): SurvivalCacheReveal =
+  ## The active player's haul from a cache: rolled and installed (their
+  ## levels, walls and repair), returned for the reveal to show.
   var reveal = SurvivalCacheReveal(active: true, tier: tier)
   for _ in 0..<survivalCacheLevels(tier):
     # Rolled one at a time so each roll sees the level the previous one set.
@@ -701,6 +700,35 @@ proc openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2): bo
   game.player.walls += reveal.walls
   if reveal.repaired:
     discard heal(game.player, game.player.maxHp * CacheFallbackHeal)
+  reveal
+
+proc openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2): bool {.discardable, moddable.} =
+  ## Apply a cache's rewards and start its reveal. False: a mod's cacheOpen
+  ## handler took it instead (gone, no rewards of its own, no reveal).
+  ##
+  ## Co-op: every player still in the run opens their own copy (their own
+  ## rolls on their own build), and the team waits until each has seen theirs
+  ## (a team modal, see game.updateCoopModal).
+  if hookActive(hkCacheOpen) and modCacheOpen(game, $tier, at.x, at.y):
+    return false
+  result = true
+  var reveal: SurvivalCacheReveal
+  if game.coop.isNil:
+    reveal = rollCacheReveal(game, tier)
+  else:
+    for p in game.players:
+      if p.eliminated: continue
+      withPlayer(game, p):
+        let r = rollCacheReveal(game, tier)
+        game.coop.seats[p.slot].reveal = r
+        reveal.shards = max(reveal.shards, r.shards)
+    let shards = reveal.shards
+    reveal = game.coop.seats[localSlot].reveal
+    reveal.shards = shards
+    game.coop.modal = cmkCache
+    game.coop.modalTimer = CoopModalTimeout
+    for p in game.players:
+      game.coop.seats[p.slot].ready = p.eliminated
   if reveal.shards > 0:
     awardMetaCurrency(game, reveal.shards)
   game.survival.reveal = reveal
@@ -724,12 +752,14 @@ proc updateSurvivalChests(game: var Game, dt: float32) {.moddable.} =
   while i < game.survival.chests.len:
     game.survival.chests[i].age += dt
     let chest = game.survival.chests[i]
-    let dist = distance(chest.pos, game.player.pos)
+    # Drawn to the nearest player, opened by any (in co-op it opens for all).
+    let near = game.nearestLivingPlayer(chest.pos.x, chest.pos.y)
+    let dist = distance(chest.pos, near.pos)
     if chest.age >= CacheMagnetDelay and
-       (dist < game.player.auraRadius or game.player.magnetTimer > 0) and dist > 1.0'f32:
-      let dir = (game.player.pos - chest.pos).normalize()
+       (dist < near.auraRadius or near.magnetTimer > 0) and dist > 1.0'f32:
+      let dir = (near.pos - chest.pos).normalize()
       game.survival.chests[i].pos = chest.pos + dir * min(dist, CacheMagnetSpeed * dt)
-    if canOpen and dist < CacheOpenRadius + game.player.radius:
+    if canOpen and dist < CacheOpenRadius + near.radius:
       game.survival.chests.delete(i)
       openSurvivalCache(game, chest.tier, chest.pos)
       return
@@ -1593,6 +1623,9 @@ proc onSurvivalBossDefeated*(game: var Game, bossPos: Vector2): bool {.moddable.
     s.victoryAchieved = true
     awardMetaCurrency(game, SurvivalVictoryShards, SurvivalVictoryCores)
     game.survivalVictoryJustEarned = not game.cheatsUsed
+    if not game.cheatsUsed:   # (and every co-op teammate's, on their own machine)
+      pushTeamProfileEvent(game, ProfileEvent(kind: pekAdvancement,
+                                              text: "survival_system_stabilized"))   # SurvivalStabilizedAdvancementId
     return true
   false
 

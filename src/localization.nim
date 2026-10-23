@@ -2023,6 +2023,19 @@ type
     tkMarketReplaceBody = "market_replace_body"
     tkMarketReplaceSub = "market_replace_sub"
 
+    # Co-op (in a run)
+    tkCoopWaitingForTeam = "coop_waiting_for_team"
+    tkCoopTeamChoosing = "coop_team_choosing"
+    tkCoopAutoIn = "coop_auto_in"
+    tkCoopReady = "coop_ready"
+    tkCoopChoosing = "coop_choosing"
+    tkCoopOut = "coop_out"
+    tkCoopPlayerN = "coop_player_n"
+    tkCoopTeamLives = "coop_team_lives"
+    tkCoopDown = "coop_down"
+    tkCoopRespawnIn = "coop_respawn_in"
+    tkCoopEliminated = "coop_eliminated"
+
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
   English: {
@@ -4313,7 +4326,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "market_err_disk": "its files could not be written",
     "market_replace_title": "Replace your copy?",
     "market_replace_body": "Install $1 from the marketplace?",
-    "market_replace_sub": "Your copy's folder is deleted and the marketplace version takes its place. Changes you made to it are lost."
+    "market_replace_sub": "Your copy's folder is deleted and the marketplace version takes its place. Changes you made to it are lost.",
+
+    # Co-op (in a run)
+    "coop_waiting_for_team": "WAITING FOR YOUR TEAM",
+    "coop_team_choosing": "TEAM CHOICE",
+    "coop_auto_in": "auto in $1s",
+    "coop_ready": "READY",
+    "coop_choosing": "choosing...",
+    "coop_out": "OUT",
+    "coop_player_n": "PLAYER $1",
+    "coop_team_lives": "TEAM LIVES",
+    "coop_down": "DOWN",
+    "coop_respawn_in": "back in $1s",
+    "coop_eliminated": "ELIMINATED - spectating your team"
   }.toTable,
 
   Spanish: {
@@ -6602,7 +6628,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "market_err_disk": "no se pudieron escribir sus archivos",
     "market_replace_title": "¿Reemplazar tu copia?",
     "market_replace_body": "¿Instalar $1 desde el mercado?",
-    "market_replace_sub": "La carpeta de tu copia se borra y la versión del mercado ocupa su lugar. Se pierden los cambios que le hayas hecho."
+    "market_replace_sub": "La carpeta de tu copia se borra y la versión del mercado ocupa su lugar. Se pierden los cambios que le hayas hecho.",
+
+    # Co-op (in a run)
+    "coop_waiting_for_team": "ESPERANDO A TU EQUIPO",
+    "coop_team_choosing": "DECISIÓN DEL EQUIPO",
+    "coop_auto_in": "auto en $1 s",
+    "coop_ready": "LISTO",
+    "coop_choosing": "eligiendo...",
+    "coop_out": "FUERA",
+    "coop_player_n": "JUGADOR $1",
+    "coop_team_lives": "VIDAS DEL EQUIPO",
+    "coop_down": "CAÍDO",
+    "coop_respawn_in": "vuelve en $1 s",
+    "coop_eliminated": "ELIMINADO - mirando a tu equipo"
   }.toTable
 }.toTable
 

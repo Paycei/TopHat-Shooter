@@ -16,4 +16,5 @@ bindModdablesIn(currentSourcePath(), [
   "../suspend.nim",
   "../localization.nim",
   "../sound.nim",
-  "../types.nim"])
+  "../types.nim",
+  "../coop/coop_profile.nim"])

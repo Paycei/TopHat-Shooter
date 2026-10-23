@@ -24,7 +24,7 @@ import modding/mod_patch_core
 import draw_prims
 import particle_types, types, roguelite, powerup, powerup_data, patches, player,
        particle_pool, sound, localization, boss_definitions, coin, xp_orb, utils, run_statistics,
-       game/combat, ui/icon_drawing, ui/ui_helpers, input_intent
+       game/combat, ui/icon_drawing, ui/ui_helpers, input_intent, coop/coop_context
 import modding/[mod_hooks, mod_registry], enemy_config
 
 # ---------------------------------------------------------------------------
@@ -192,11 +192,13 @@ type
     ## What a frame of dungeon logic needs game.nim to do on its behalf.
     pauseSim*: bool      # transition or modal opened: skip the rest of this frame's gameplay
     install*: PowerUp    # level > 0: a bought package, routed through installPowerUp
+    installSlot*: int32  # whose purchase it is (the player it installs on)
     checkpoint*: bool    # progress worth saving (door taken, reward claimed, purchase)
 
 var focusedPickup = -1
-  ## Index (into the live room's pickups) of the pedestal/stall in [E] range,
-  ## or -1. Written by updateDungeon, read by drawDungeonOverlay for the card.
+  ## Index (into the live room's pickups) of the pedestal/stall in this
+  ## machine's player's [E] range, or -1. Written by updateDungeon, read by
+  ## drawDungeonOverlay for the card.
 
 # ---------------------------------------------------------------------------
 # Themes
@@ -1053,34 +1055,38 @@ proc applyRoomScaling(game: Game) =
   ## Mirrors the per-wave player scaling from startWave (game.nim): without
   ## this the player never grows while room threat keeps rising. Runs once per
   ## uncleared combat/elite/boss room, and also refreshes per-wave abilities.
-  let waveScaling = RoomScalingPerRoom
-  game.player.maxHp *= waveScaling
-  game.player.baselineMaxHp *= waveScaling  # Free growth, excluded from Juggernaut
-  game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)
-  game.player.damage *= waveScaling
-  game.player.speed *= waveScaling
-  game.player.baseSpeed *= waveScaling
-  game.player.bulletSpeed = multiplyBulletSpeedDiminished(game.player.bulletSpeed, waveScaling)
-  game.player.fireRate /= waveScaling
+  for p in game.players:   # every player of a co-op run
+    withPlayer(game, p):
+      let waveScaling = RoomScalingPerRoom
+      game.player.maxHp *= waveScaling
+      game.player.baselineMaxHp *= waveScaling  # Free growth, excluded from Juggernaut
+      game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)
+      game.player.damage *= waveScaling
+      game.player.speed *= waveScaling
+      game.player.baseSpeed *= waveScaling
+      game.player.bulletSpeed = multiplyBulletSpeedDiminished(game.player.bulletSpeed, waveScaling)
+      game.player.fireRate /= waveScaling
 
-  game.player.timeWarpUsesThisWave = 0
-  game.player.timeWarpCooldown = 0
-  game.player.phaseShiftCooldown = 0
-  game.player.bloodPactCooldown = 0
-  game.player.conduitCooldown = 0
-  game.player.aftershockCooldown = 0
-  game.player.novaCooldown = 0
-  if hasPowerUp(game.player, puCelestialVeil):
-    game.player.celestialVeilCharges = 2
+      game.player.timeWarpUsesThisWave = 0
+      game.player.timeWarpCooldown = 0
+      game.player.phaseShiftCooldown = 0
+      game.player.bloodPactCooldown = 0
+      game.player.conduitCooldown = 0
+      game.player.aftershockCooldown = 0
+      game.player.novaCooldown = 0
+      if hasPowerUp(game.player, puCelestialVeil):
+        game.player.celestialVeilCharges = 2
 
 proc armRoomPatches(game: Game, room: DungeonRoom) =
   ## Per-room patch charges, re-armed on entering an uncleared fight.
-  if hasPatch(game.player, rrtFirewallRule):
-    game.player.patchBlockCharges = max(game.player.patchBlockCharges, 1)
-  if room.kind == drkBoss and hasPatch(game.player, rrtEmergencyPatch):
-    game.player.patchBlockCharges += 1
-  if hasPatch(game.player, rrtCronJob):
-    game.player.cronJobTimer = CronJobInterval
+  for p in game.players:   # every player of a co-op run
+    withPlayer(game, p):
+      if hasPatch(game.player, rrtFirewallRule):
+        game.player.patchBlockCharges = max(game.player.patchBlockCharges, 1)
+      if room.kind == drkBoss and hasPatch(game.player, rrtEmergencyPatch):
+        game.player.patchBlockCharges += 1
+      if hasPatch(game.player, rrtCronJob):
+        game.player.cronJobTimer = CronJobInterval
 
 proc initRoomPulses(room: DungeonRoom) =
   room.pulseCount = clamp(room.encounterBudget div PulseEnemies, 2, 5)
@@ -1142,9 +1148,13 @@ proc enterRoom*(game: Game, roomIdx: int, enteredThrough: DoorDir,
   focusedPickup = -1
 
   wipeRoomEntities(game)
-  game.player.pos = if room.kind == drkStart: roomCenter(game)
-                    else: doorSpawnPos(game, enteredThrough)
-  game.player.vel = vec2(0, 0)
+  # The whole team comes through together (side by side in co-op).
+  let spawn = if room.kind == drkStart: roomCenter(game)
+              else: doorSpawnPos(game, enteredThrough)
+  for p in game.players:
+    p.pos = spawn + teamSpawnOffset(game, p)
+    p.vel = vec2(0, 0)
+    inc p.warp
   run.roomDensityWave = dungeonDensityWave(run, room)
 
   if room.kind in {drkCombat, drkElite, drkBoss}:
@@ -1201,7 +1211,8 @@ proc startDungeonFloor*(game: Game, theme: DungeonFloorTheme) {.moddable.} =
   game.roomTransitionActive = false
   game.roomTransitionTimer = 0
   # Rollback re-arms once per sector.
-  game.player.rollbackArmed = hasPatch(game.player, rrtRollback)
+  for p in game.players:
+    p.rollbackArmed = hasPatch(p, rrtRollback)
   enterRoom(game, 0, ddDown)
   modFloorStart(game, run.floorNumber)
 
@@ -1250,10 +1261,12 @@ proc onRoomCleared*(game: Game) {.moddable.} =
   showCurrency(game, game.player.pos + vec2(0, -36), max(1, shardBonus), cikDataShards)
 
   # Defragmenter patch: a cleared folder compacts integrity back.
-  if hasPatch(game.player, rrtDefragmenter):
-    let restored = heal(game.player, game.player.maxHp * DefragmenterRoomHeal)
-    if restored > 0:
-      showDamage(game, game.player.pos, restored, true, false, dtHeal)
+  for p in game.livingPlayers:
+    withPlayer(game, p):
+      if hasPatch(game.player, rrtDefragmenter):
+        let restored = heal(game.player, game.player.maxHp * DefragmenterRoomHeal)
+        if restored > 0:
+          showDamage(game, game.player.pos, restored, true, false, dtHeal)
 
   spawnRoomReward(game, room)
 
@@ -1266,10 +1279,12 @@ proc markBossRoomCleared*(game: Game) {.moddable.} =
     room.cleared = true
     room.rewardClaimed = true
     run.totalRoomsCleared += 1
-    if hasPatch(game.player, rrtDefragmenter):
-      let restored = heal(game.player, game.player.maxHp * DefragmenterBossHeal)
-      if restored > 0:
-        showDamage(game, game.player.pos, restored, true, false, dtHeal)
+    for p in game.livingPlayers:
+      withPlayer(game, p):
+        if hasPatch(game.player, rrtDefragmenter):
+          let restored = heal(game.player, game.player.maxHp * DefragmenterBossHeal)
+          if restored > 0:
+            showDamage(game, game.player.pos, restored, true, false, dtHeal)
   collectAllCoins(game)
   collectAllXpOrbs(game)
   game.waveInProgress = false
@@ -1396,7 +1411,10 @@ proc claimDungeonPickup(game: Game, index: int): DungeonFrame {.moddable.} =
 proc updateDungeon*(game: Game, dt: float32): DungeonFrame {.moddable.} =
   ## One frame of sector logic. `pauseSim` means gameplay should skip the rest
   ## of this frame (a room transition is running, or a modal just opened).
-  game.dungeonInteractFocus = false
+  ## Any player can take the exit portal or a door (the team moves together),
+  ## grab a touch reward, or [E] the pedestal or stall nearest them.
+  for p in game.players:
+    p.interactFocus = false
   let run = game.rogueliteRun
   if run.isNil or run.floor.isNil: return
   let floor = run.floor
@@ -1430,8 +1448,12 @@ proc updateDungeon*(game: Game, dt: float32): DungeonFrame {.moddable.} =
   # into it. It animates in first (spawn animation) before becoming enterable.
   if game.bossPortalActive and room.kind == drkBoss:
     game.bossPortalTimer += dt
-    if game.bossPortalTimer >= ExitPortalSpawnDuration and
-       distance(game.player.pos, exitPortalPos(game)) < ExitPortalRadius + game.player.radius:
+    var anyoneIn = false
+    for p in game.livingPlayers:
+      if distance(p.pos, exitPortalPos(game)) < ExitPortalRadius + p.radius:
+        anyoneIn = true
+        break
+    if game.bossPortalTimer >= ExitPortalSpawnDuration and anyoneIn:
       game.bossPortalActive = false
       playSound(stTeleport)
       generateThemeChoices(run)
@@ -1444,56 +1466,78 @@ proc updateDungeon*(game: Game, dt: float32): DungeonFrame {.moddable.} =
   # draft can never stack under (or race) a level-up one.
   let canClaim = game.state == gsPlaying and game.pendingLevelDrafts <= 0 and
                  game.levelDraftDelay <= 0
-  var nearest = -1
-  var nearestDist = InteractRadius + game.player.radius
+  # Each player's nearest [E] pickup.
+  var nearest: array[MaxCoopPlayers, int]
+  var nearestDist: array[MaxCoopPlayers, float32]
+  for p in game.players:
+    nearest[p.slot] = -1
+    nearestDist[p.slot] = InteractRadius + p.radius
   for i, pickup in room.pickups:
     if pickup.taken: continue
     pickup.spawnTimer += dt
     if pickup.spawnTimer < PickupSpawnTime: continue
-    let d = distance(game.player.pos, pickup.pos)
     if isInteractPickup(pickup.kind):
-      if d < nearestDist:
-        nearestDist = d
-        nearest = i
+      for p in game.livingPlayers:
+        let d = distance(p.pos, pickup.pos)
+        if d < nearestDist[p.slot]:
+          nearestDist[p.slot] = d
+          nearest[p.slot] = i
     else:
-      # Touch rewards drift to the player so none is ever walked past.
+      # Touch rewards drift to the nearest player so none is ever walked past.
+      let drawnTo = game.nearestLivingPlayer(pickup.pos.x, pickup.pos.y)
+      let d = distance(drawnTo.pos, pickup.pos)
       if pickup.spawnTimer >= PickupMagnetDelay and d > 1.0'f32:
         let step = min(d, PickupMagnetSpeed * dt)
-        pickup.pos = pickup.pos + (game.player.pos - pickup.pos) * (step / d)
-      if canClaim and distance(game.player.pos, pickup.pos) < PickupRadius + game.player.radius:
-        let r = claimDungeonPickup(game, i)
-        result.checkpoint = result.checkpoint or r.checkpoint
-        if r.pauseSim:
-          result.pauseSim = true
-          return
-  focusedPickup = nearest
-  if nearest >= 0:
-    game.dungeonInteractFocus = true
-    if canClaim and consumeEdge(game.player, ieInteract):
-      game.interactKeyLatch = true
-      let r = claimDungeonPickup(game, nearest)
+        pickup.pos = pickup.pos + (drawnTo.pos - pickup.pos) * (step / d)
+      if canClaim:
+        var taker: Player = nil
+        for p in game.livingPlayers:
+          if distance(p.pos, pickup.pos) < PickupRadius + p.radius:
+            taker = p
+            break
+        if not taker.isNil:
+          var r: DungeonFrame
+          withPlayer(game, taker):
+            r = claimDungeonPickup(game, i)
+          result.checkpoint = result.checkpoint or r.checkpoint
+          if r.pauseSim:
+            result.pauseSim = true
+            return
+  focusedPickup = nearest[localSlot]
+  for p in game.livingPlayers:
+    let near = nearest[p.slot]
+    if near < 0: continue
+    p.interactFocus = true
+    if canClaim and consumeEdge(p, ieInteract):
+      p.interactLatch = true
+      var r: DungeonFrame
+      withPlayer(game, p):
+        r = claimDungeonPickup(game, near)
       result.install = r.install
+      result.installSlot = p.slot
       result.checkpoint = result.checkpoint or r.checkpoint
       # The [E] press is spent: skip the rest of this frame's gameplay so it
       # can't also count as a wall-placement press.
       result.pauseSim = true
       return
 
-  # Door traversal once the folder is cleared and its reward collected.
+  # Door traversal once the folder is cleared and its reward collected: the
+  # first player through takes the team along.
   if exitsOpen(room):
-    let playerRect = Rectangle(
-      x: game.player.pos.x - game.player.radius,
-      y: game.player.pos.y - game.player.radius,
-      width: game.player.radius * 2,
-      height: game.player.radius * 2)
-    for ex in exitsOf(floor, room):
-      if checkCollisionRecs(playerRect, doorRect(game, ex.dir)):
-        game.roomTransitionActive = true
-        game.roomTransitionTimer = 0
-        game.roomTransitionDir = ex.dir
-        playSound(stMenuSelect, 0.6)
-        result.pauseSim = true
-        return
+    for p in game.livingPlayers:
+      let playerRect = Rectangle(
+        x: p.pos.x - p.radius,
+        y: p.pos.y - p.radius,
+        width: p.radius * 2,
+        height: p.radius * 2)
+      for ex in exitsOf(floor, room):
+        if checkCollisionRecs(playerRect, doorRect(game, ex.dir)):
+          game.roomTransitionActive = true
+          game.roomTransitionTimer = 0
+          game.roomTransitionDir = ex.dir
+          playSound(stMenuSelect, 0.6)
+          result.pauseSim = true
+          return
 
 # ---------------------------------------------------------------------------
 # HUD helpers

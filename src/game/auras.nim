@@ -69,12 +69,12 @@ proc auraWaveFrontRadius*(elapsed, maxRadius: float32): float32 {.moddable.} =
 
 proc auraWaveAlreadyHit*(player: Player, enemy: Enemy, slot: AuraSlot): bool {.moddable.} =
   ## Whether the current pulse of `slot` has already spent itself on this enemy
-  enemy.auraWaveHitSeq[slot] == player.auraPulseSeq[slot]
+  enemy.auraWaveHitSeq[player.slot][slot] == player.auraPulseSeq[slot]
 
 proc markAuraWaveHit*(player: Player, enemy: Enemy, slot: AuraSlot) {.moddable.} =
   ## Consume this enemy for the current pulse of `slot` so nothing else in the
   ## same wave can hit it again (chain lightning uses this on its chain targets).
-  enemy.auraWaveHitSeq[slot] = player.auraPulseSeq[slot]
+  enemy.auraWaveHitSeq[player.slot][slot] = player.auraPulseSeq[slot]
 
 proc auraWaveCatches*(player: Player, enemy: Enemy, slot: AuraSlot,
                       frontRadius: float32): bool {.moddable.} =
@@ -83,11 +83,11 @@ proc auraWaveCatches*(player: Player, enemy: Enemy, slot: AuraSlot,
   ## hold even when the enemy moves: the front is only ~35 px/s as it settles
   ## into the rim, so a wind gust's knockback would otherwise shove an enemy
   ## back out through it and be hit over and over by a single gust.
-  if enemy.auraWaveHitSeq[slot] == player.auraPulseSeq[slot]: return false
+  if enemy.auraWaveHitSeq[player.slot][slot] == player.auraPulseSeq[slot]: return false
   let dx = player.pos.x - enemy.pos.x
   let dy = player.pos.y - enemy.pos.y
   if dx * dx + dy * dy > frontRadius * frontRadius: return false
-  enemy.auraWaveHitSeq[slot] = player.auraPulseSeq[slot]
+  enemy.auraWaveHitSeq[player.slot][slot] = player.auraPulseSeq[slot]
   true
 
 proc getAuraRangeMult(auraType: PowerUpType): float32 {.moddable.} =

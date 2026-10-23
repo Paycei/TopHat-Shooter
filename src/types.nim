@@ -714,6 +714,8 @@ type
     laserDamage*: int            # Damage of lasers when fired
     laserDuration*: float32      # How long lasers stay active
     lasersCreated*: bool         # Flag to track if lasers were already created
+    targetSlot*: int32           ## co-op: the player it was aimed at (the slot active when it spawned)
+    coopZoneHits*: uint8         ## co-op: slots 1.. a one-shot zone has already hit (slot 0: lasersCreated)
     laserPattern*: string        # Pattern type: "cross_laser", "rotating_grid", "prismatic_cage"
     enemyType*: EnemyType        # Type of enemy creating this attack
     targetPos*: Vector2         # Target coordinates for satellite laser
@@ -914,6 +916,14 @@ type
     eliminated*: bool     ## out of the run (no team life was left): spectating
     warp*: int32          ## teleports so far: a rise tells a co-op client to snap, not smooth
     placingWall*: bool    ## holding the wall key: placement preview shown, mouse/pad fire held back
+    arena*: BossArenaSeat ## where this player stands on the boss-arena ring field
+    interactFocus*: bool  ## roguelite: a pedestal/stall is in this player's [E] range this frame
+    interactLatch*: bool  ## roguelite: their [E] press went to a pickup; wall placement
+                          ## stays held back until they let the key go
+    echo*: EchoTrail      ## their recent past (the Mirror Cache replays it)
+    shopBought*: array[6, int]  ## co-op: their own wave-shop purchases (Game.shopItems counts the
+                                ## active one's; ui/os_shop prices from them)
+    modShopBought*: seq[tuple[key: string, bought: int]]  ## co-op: the same for mod rows
     skinType*: int  # Current equipped skinHost
     bulletSkinType*: int  # Current equipped bullet skin
     modSkin*: int16       # MODS.EXE: equipped mod player cosmetic (index + 1, 0 = none)
@@ -1123,7 +1133,8 @@ type
     modStatuses*: seq[ModStatusInst]  # Mod statuses (register.status) on this enemy
     statusSpeed*, statusDamageTaken*, statusDamageDealt*: float32
       ## Their summed modifiers, as fractions (kept current by mod_registry)
-    auraWaveHitSeq*: array[AuraSlot, int32]  # Last aura pulse (per slot) whose wavefront already hit this enemy
+    auraWaveHitSeq*: array[MaxCoopPlayers, array[AuraSlot, int32]]
+      ## Per player and aura slot: the last pulse whose wavefront already hit this enemy
     pos*: Vector2
     vel*: Vector2
     knockbackVel*: Vector2       # Residual knockback impulse (Pulse Armor etc.); decays independently of chase AI
@@ -1249,6 +1260,12 @@ type
     hasteAmount*: float32   # Speed bonus fraction (Priority Daemon aura, Dispatcher boost)
     hasteTimer*: float32    # Seconds of haste left
     ballisticVel*: Vector2 # Non-zero: flies straight at this velocity (fork seeds, payload orbs, marching ranks)
+    # Co-op (coop/coop_context.nim): who it hunts, and whose kill it is.
+    targetSlot*: int32      ## the player it chases and aims at
+    retargetTimer*: float32 ## seconds until it looks again for the nearest player
+    lastHitSlot*: int32     ## the player who last damaged it: its kill is theirs
+    coopContactTimes*: array[MaxCoopPlayers - 1, float32]
+      ## lastContactDamageTime for slots 1.. (slot 0 keeps that field)
 
   Bullet* = ref object
     pos*: Vector2
@@ -1357,6 +1374,7 @@ type
     shape*: ThingShape
     team*: ThingTeam
     flags*: set[ThingFlag]
+    playerSlot*: int32       ## co-op: the player it follows or orbits (the one active when it was made)
     hp*, maxHp*: float32
     contactDamage*, contactInterval*, contactTimer*: float32
     lifetime*, age*: float32 ## lifetime 0 = forever
@@ -1418,6 +1436,7 @@ type
     permanent*: bool      # Dungeon obstacle: ignores duration decay, not player-placed
     respawns*: bool       # Boss-room obstacle: re-forms a while after being destroyed
     obstacleTint*: Color  # Theme accent for permanent dungeon obstacles
+    ownerSlot*: int32     # co-op: the player who built it (its turret fires as theirs)
 
   PendingWallRespawn* = object
     ## A boss-room obstacle that was smashed and is waiting to re-form. Kept off
@@ -1641,6 +1660,23 @@ type
     bossArenaPlayerX*: float32
     bossArenaPlayerY*: float32
 
+  BossArenaSeat* = object
+    ## One player's footing on the boss-arena ring field: the bossArenaPlayer*
+    ## fields above, kept per player (ui/os_background.loadArenaSeat puts the
+    ## active player's into OSBackgroundState for the field's procs to use).
+    damageCooldown*: float32
+    band*: int
+    onActive*: bool
+    bonusIntensity*: float32
+    x*, y*: float32
+
+  BossArenaField* = object
+    ## The ring field itself, which is the run's: the copy a co-op client
+    ## draws from (OSBackgroundState holds the live one).
+    mode*: BossArenaRingMode
+    phase*: float32
+    rotation*: float32
+
   TaskManagerTab* = enum
     tmtProcesses,    # Active power-ups
     tmtPerformance,  # Stats and metrics
@@ -1822,15 +1858,19 @@ type
     aim*: float32
     fired*: bool
 
+  EchoTrail* = object
+    ## A player's recent past, for the Mirror Cache to replay and the Audit Lock
+    ## to check (game/mode_mechanics.nim). Each player keeps their own.
+    samples*: seq[EchoSample]   # ring buffer, EchoSampleRate Hz
+    head*: int
+    clock*: float32
+    shotLatch*: bool            # the player fired since the last sample
+
   ModeCombatState* = object
     ## Transient, per-frame-derived state of the Survival/Roguelite rosters.
     ## Value types only (snapshot-safe); cleared whenever the room/horde is.
     corpses*: seq[CorpseRecord]
     husks*: seq[HuskRecord]
-    echo*: seq[EchoSample]      # ring buffer, EchoSampleRate Hz
-    echoHead*: int
-    echoClock*: float32
-    echoShotLatch*: bool        # the player fired since the last sample
     auditTimer*: float32        # > 0: Audit Lock is freezing the room
 
   SurvivalPendingSpawn* = object
@@ -1907,11 +1947,46 @@ type
     cheatForceBoss*: bool          # cheat: spawn the next boss now
     cheatEventKind*: SurvivalEventKind  # cheat: start this event now
 
+  CoopModalKind* = enum
+    ## A screen that pauses a co-op run until every player is done with it.
+    cmkNone       ## nothing open: the run is live
+    cmkDraft      ## a power-up draft: each player picks from their own roll
+    cmkShop       ## the wave shop: each player shops their own wallet
+    cmkCache      ## a survival Data Cache: each player's own rewards and reveal
+    cmkFloorVote  ## roguelite floor select: the team votes on the next sector
+
+  CoopSeat* = object
+    ## One player's part in the team modal that is open (CoopState.modal).
+    choices*: array[3, PowerUp]  ## draft: their own roll
+    exhausted*: bool             ## draft: the pool has nothing left to offer them
+    rollSeq*: int32              ## bumped on every new roll (open, reroll): their reel restarts
+    rerollCost*: int             ## draft: what their next reroll costs
+    ready*: bool                 ## picked, done shopping, dismissed or voted
+    vote*: int32                 ## floor select: the card they voted for
+    reveal*: SurvivalCacheReveal ## cache: what it gave them
+
+  CoopActionKind* = enum
+    ## What a player does in a team modal (submitted to the host, applied there).
+    cakPick    ## draft: take card `value` (-1: continue without one)
+    cakReroll  ## draft: reroll their cards (their own credits)
+    cakBuy     ## shop: buy row `value`
+    cakDone    ## shop: finished; cache: reveal dismissed
+    cakVote    ## floor select: vote for card `value`
+
+  CoopAction* = object
+    kind*: CoopActionKind
+    value*: int32
+    seq*: int32   ## the sender's running count (delivery is reliable: see coop_session)
+
   CoopState* = ref object
     ## A co-op run's shared state (src/coop/); nil in single player. It lives
     ## on Game, so the host's copy reaches every client in the snapshot.
     teamLives*: int       ## team life pool left (UnlimitedLives = no limit)
     nicknames*: array[MaxCoopPlayers, string]
+    modal*: CoopModalKind     ## the team modal open, cmkNone while the run is live
+    modalTimer*: float32      ## seconds before the ones still deciding are decided for
+    modalLegendary*: bool     ## the open draft is a legendary one
+    seats*: array[MaxCoopPlayers, CoopSeat]
 
   Game* = ref object
     state*: GameState
@@ -1920,6 +1995,7 @@ type
                       ## (in single player, the only one). See coop/coop_context.nim.
     players*: seq[Player]  ## every player of the run, indexed by Player.slot
     coop*: CoopState       ## co-op run state, nil in single player
+    bossArena*: BossArenaField  ## the boss-arena ring field (osBackground runs it; this is its copy)
     enemies*: seq[Enemy]
     bullets*: seq[Bullet]
     bulletIdCounter*: int  # Counter for generating unique bullet IDs
@@ -2055,9 +2131,6 @@ type
     roomTransitionDir*: DoorDir      # Door the player walked through
     bossPortalActive*: bool          # Roguelite: exit portal open in the cleared boss room
     bossPortalTimer*: float32        # Drives the portal spawn + idle animation
-    dungeonInteractFocus*: bool      # Roguelite: a pedestal/stall is in [E] range this frame
-    interactKeyLatch*: bool          # Roguelite: an [E] press was spent on a pickup; wall
-                                     # placement stays suppressed until the key is released
     osBackground*: OSBackgroundState  # Animated background system
     pendingToasts*: seq[string]  # Toasts queued by subsystems; drained to desktop toasts each frame
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
@@ -2124,6 +2197,12 @@ iterator pairs*(a: seq[Bullet]): tuple[key: int, val: Bullet] {.inline.} =
 # switch (main.nim) and read by the spawn/damage choke points below. Medium is
 # the pre-difficulty-system balance, so its multipliers are exactly 1.0.
 var currentDifficulty* = gdMedium
+
+# The player slot the simulation is running right now (coop/coop_context.nim
+# swaps it with game.player). Down here so every constructor of a thing that
+# belongs to a player -- a warning aimed at one, a bullet fired by one -- can
+# record it. Always 0 in single player.
+var activeSlot*: int32 = 0
 
 # Wave-mode boss cadence: a boss spawns on every wave that is a multiple of this
 # (waves 5, 10, ... 60 for the 12-boss campaign). All cadence math -- isBossWave,
@@ -2434,18 +2513,29 @@ type DifficultyLever* = enum
   dlEnemyHp = "enemyHp", dlEnemyDamage = "enemyDamage", dlEnemySpeed = "enemySpeed",
   dlSpawnPace = "spawnPace", dlEliteChance = "eliteChance", dlBossCooldown = "bossCooldown"
 
+var coopPlayerCount*: int = 1
+  ## Players in the run on screen (co-op seats more than one). More players mean
+  ## sturdier enemies arriving faster: see coopScale below. Always 1 in single player.
+
 var modDifficultyScale* = [1'f32, 1, 1, 1, 1, 1]
   ## difficulty.scale's multipliers, indexed by ord(DifficultyLever). Reset to 1
   ## for every new run (mod_hooks.modBeginFrame); scripts set them again in runStart.
 
 template modLever(l: DifficultyLever): float32 = modDifficultyScale[ord(l)]
 
+proc coopScale*(perExtraPlayer: float32): float32 {.inline.} =
+  ## 1 in single player; grows by `perExtraPlayer` for each co-op player
+  ## beyond the first (exactly 1.0 for one player, so solo balance is untouched).
+  1.0'f32 + perExtraPlayer * float32(max(0, coopPlayerCount - 1))
+
 proc difficultyEnemyHpMult*(): float32 {.moddable.} =
+  ## Also scales with a co-op team's size: every extra player brings a whole
+  ## extra build's damage to the same enemies.
   (case currentDifficulty
    of gdEasy: 0.75'f32
    of gdMedium: 1.0'f32
    of gdHard: 1.40'f32
-   of gdNightmare: 1.80'f32) * modLever(dlEnemyHp)
+   of gdNightmare: 1.80'f32) * modLever(dlEnemyHp) * coopScale(0.65'f32)
 
 proc difficultyEnemyDamageMult*(): float32 {.moddable.} =
   (case currentDifficulty
@@ -2467,11 +2557,12 @@ proc difficultySpawnPaceMult*(): float32 {.moddable.} =
   ## Divides the delay between spawn ticks. A wave's head count is unchanged
   ## (every per-enemy reward is normalised against calculateWaveEnemyCount, see
   ## waveDensityRebate), so this packs the same wave into a shorter window: more
-  ## bodies on screen at once, not a bigger economy.
+  ## bodies on screen at once, not a bigger economy. A co-op team, which clears
+  ## a wave faster, gets it packed tighter still.
   (case currentDifficulty
    of gdEasy, gdMedium: 1.0'f32
    of gdHard: 1.25'f32
-   of gdNightmare: 1.50'f32) * modLever(dlSpawnPace)
+   of gdNightmare: 1.50'f32) * modLever(dlSpawnPace) * coopScale(0.30'f32)
 
 proc difficultyEliteChanceMult*(): float32 {.moddable.} =
   ## Scales the per-enemy elite roll in makeElite.
@@ -2574,7 +2665,8 @@ proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
     lifetime: duration,
     maxLifetime: duration,
     sourceEnemyId: sourceEnemyId,
-    laserAngles: @[]
+    laserAngles: @[],
+    targetSlot: activeSlot   # aimed at whoever its spawner is after (coop_context)
   )
 
 proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32],

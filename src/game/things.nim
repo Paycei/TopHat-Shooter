@@ -19,7 +19,7 @@ import ../modding/mod_patch_core
 import raylib
 import ../draw_prims
 import ../types, ../utils, ../particle_types, ../player, ../bullet, ../enemy_helpers, ../run_statistics, ../particle_pool
-import combat, death
+import combat, death, ../coop/coop_context
 import ../modding/[lua_bridge, mod_hooks, mod_registry, mod_assets]
 
 const
@@ -169,11 +169,14 @@ proc fireWeapon(game: Game, t: ModThing, w: ThingWeapon): bool =
   var found = false
   var bestD = w.range * w.range
   if t.team == ttEnemy:
-    let dx = game.player.pos.x - t.pos.x
-    let dy = game.player.pos.y - t.pos.y
-    if dx * dx + dy * dy <= bestD:
-      target = game.player.pos
-      found = true
+    for p in game.livingPlayers:   # the nearest player in range
+      let dx = p.pos.x - t.pos.x
+      let dy = p.pos.y - t.pos.y
+      let d = dx * dx + dy * dy
+      if d <= bestD:
+        bestD = d
+        target = p.pos
+        found = true
   else:
     for e in game.enemies:
       if e.hp <= 0: continue
@@ -207,13 +210,16 @@ proc fireWeapon(game: Game, t: ModThing, w: ThingWeapon): bool =
 # ----------------------------------------------------------------- hazards ----
 proc applyHazard(game: Game, t: ModThing, grid: SpatialGrid, maxEnemyR: float32) =
   let hz = t.hazard
-  if hz.hurts in {htPlayer, htAll} and game.state == gsPlaying and game.player.hp > 0 and
-     hazardHits(t, game.player.pos, game.player.radius):
-    let died = takeDamage(game.player, hz.damage)
-    if game.player.lastDamageTaken > 0.001:
-      trackPlayerDamage(game, etEnvironment)
-      game.showPlayerDamageTaken(dtDefault)
-    if died: beginPlayerDeathSequence(game, dcHazard)
+  if hz.hurts in {htPlayer, htAll}:
+    for victim in game.livingPlayers:
+      withPlayer(game, victim):
+        if game.state == gsPlaying and game.player.hp > 0 and
+           hazardHits(t, game.player.pos, game.player.radius):
+          let died = takeDamage(game.player, hz.damage)
+          if game.player.lastDamageTaken > 0.001:
+            trackPlayerDamage(game, etEnvironment)
+            game.showPlayerDamageTaken(dtDefault)
+          if died: beginPlayerDeathSequence(game, dcHazard)
   if hz.hurts in {htEnemies, htAll}:
     let reach = max(max(t.radius, hz.length), 0.5'f32 * sqrt(t.w * t.w + t.h * t.h)) + maxEnemyR
     for idx in grid.nearby(t.pos, reach):
@@ -277,7 +283,9 @@ proc moveThing(game: Game, t: ModThing, dt: float32) =
       if (t.pos.x < r and t.vel.x < 0) or (t.pos.x > w - r and t.vel.x > 0): t.vel.x = -t.vel.x * t.bounce
       if (t.pos.y < r and t.vel.y < 0) or (t.pos.y > h - r and t.vel.y > 0): t.vel.y = -t.vel.y * t.bounce
   of tmFollowPlayer, tmChasePlayer, tmChaseEnemy:
-    var target = game.player.pos
+    # Follow: its own player. Chase: whoever is nearest.
+    var target = if t.motion == tmFollowPlayer: game.playerOfSlot(t.playerSlot).pos
+                 else: game.nearestLivingPlayer(t.pos.x, t.pos.y).pos
     var stopAt = if t.motion == tmFollowPlayer: max(t.orbitRadius, 1'f32) else: 0'f32
     if t.motion == tmChaseEnemy:
       let e = nearestEnemy(game, t.pos)
@@ -299,15 +307,15 @@ proc moveThing(game: Game, t: ModThing, dt: float32) =
   of tmOrbitPlayer:
     t.orbitAngle += t.speed * dt   # degrees per second
     let a = degToRad(t.orbitAngle)
-    t.pos = vec2(game.player.pos.x + cos(a) * t.orbitRadius,
-                        game.player.pos.y + sin(a) * t.orbitRadius)
+    let center = game.playerOfSlot(t.playerSlot).pos
+    t.pos = vec2(center.x + cos(a) * t.orbitRadius,
+                        center.y + sin(a) * t.orbitRadius)
   t.angle += t.spin * dt
 
 proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, maxEnemyR: float32) {.moddable.} =
   ## One frame of every thing (see the module comment for the order). `grid`
   ## holds game.enemies as of this frame; nothing here adds or deletes enemies.
   if game.modThings.len == 0: return
-  let player = game.player
   var i = 0
   while i < game.modThings.len:   # index loop: a callback may not add (spawns queue)
     let t = game.modThings[i]
@@ -340,23 +348,26 @@ proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, m
           t.weaponTimer = 0
     if t.contactTimer > 0: t.contactTimer -= dt
     let interval = if t.contactInterval > 0: t.contactInterval else: DefaultContactInterval
-    # 5. contact with the player
-    if tfPickup notin t.flags and game.state == gsPlaying and player.hp > 0 and
-       overlapsCircle(t, player.pos, player.radius):
+    # 5. contact with the players (one contact cooldown per thing)
+    if tfPickup notin t.flags and game.state == gsPlaying:
       var touched = false
-      if t.contactTimer <= 0:
-        if ki >= 0 and thingKinds[ki].onTouchPlayer.isFn:
-          var r: RetVals
-          discard callKind(thingKinds[ki].owner, thingKinds[ki].onTouchPlayer,
-                           [wrapThing(t), wrapPlayer(player), wrapGame(game)], r)
-          touched = true
-        if t.contactDamage > 0 and t.hurtsPlayer:
-          let died = takeDamage(player, t.contactDamage)
-          if player.lastDamageTaken > 0.001:
-            trackPlayerDamage(game, etEnvironment)
-            game.showPlayerDamageTaken(dtDefault)
-          if died: beginPlayerDeathSequence(game, dcHazard)
-          touched = true
+      for player in game.livingPlayers:
+        if player.hp <= 0 or not overlapsCircle(t, player.pos, player.radius): continue
+        if t.contactTimer <= 0:
+          withPlayer(game, player):
+            if ki >= 0 and thingKinds[ki].onTouchPlayer.isFn:
+              var r: RetVals
+              discard callKind(thingKinds[ki].owner, thingKinds[ki].onTouchPlayer,
+                               [wrapThing(t), wrapPlayer(player), wrapGame(game)], r)
+              touched = true
+            if t.contactDamage > 0 and t.hurtsPlayer:
+              let died = takeDamage(player, t.contactDamage)
+              if player.lastDamageTaken > 0.001:
+                trackPlayerDamage(game, etEnvironment)
+                game.showPlayerDamageTaken(dtDefault)
+              if died: beginPlayerDeathSequence(game, dcHazard)
+              touched = true
+        if not t.alive: break
       if touched: t.contactTimer = interval
       if not t.alive: continue
     # 6. contact with enemies
@@ -380,10 +391,11 @@ proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, m
         if not t.alive: break
       if touched: t.contactTimer = interval
       if not t.alive: continue
-    # 7. solid: push the player and regular enemies out
+    # 7. solid: push the players and regular enemies out
     if tfSolid in t.flags:
-      if overlapsCircle(t, player.pos, player.radius):
-        pushOut(t, player.pos, player.radius)
+      for player in game.livingPlayers:
+        if overlapsCircle(t, player.pos, player.radius):
+          pushOut(t, player.pos, player.radius)
       for idx in grid.nearby(t.pos, t.extentRadius + maxEnemyR):
         if idx >= game.enemies.len: continue
         let e = game.enemies[idx]
@@ -392,21 +404,29 @@ proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, m
           pushOut(t, e.pos, e.collisionRadius)
     # 8. pickup and magnet
     if tfPickup in t.flags and game.state == gsPlaying:
-      let dx = player.pos.x - t.pos.x
-      let dy = player.pos.y - t.pos.y
+      # Drawn to the nearest player, taken by the first one touching it.
+      let near = game.nearestLivingPlayer(t.pos.x, t.pos.y)
+      let dx = near.pos.x - t.pos.x
+      let dy = near.pos.y - t.pos.y
       let d = sqrt(dx * dx + dy * dy)
       if tfMagnet in t.flags and d < MagnetRange and d > 0.001:
         let pull = max(t.speed, 320'f32) * dt
         t.pos.x += dx / d * min(pull, d)
         t.pos.y += dy / d * min(pull, d)
-      if overlapsCircle(t, player.pos, player.radius):
+      var taker: Player = nil
+      for p in game.livingPlayers:
+        if overlapsCircle(t, p.pos, p.radius):
+          taker = p
+          break
+      if not taker.isNil:
         var keep = false
         if ki >= 0 and thingKinds[ki].onPickup.isFn:
-          var r: RetVals
-          if callKind(thingKinds[ki].owner, thingKinds[ki].onPickup,
-                      [wrapThing(t), wrapPlayer(player), wrapGame(game)], r) and
-             r.count > 0 and r.first.kind == vkBool and not r.first.b:
-            keep = true   # onPickup returned false: not taken (yet)
+          withPlayer(game, taker):
+            var r: RetVals
+            if callKind(thingKinds[ki].owner, thingKinds[ki].onPickup,
+                        [wrapThing(t), wrapPlayer(taker), wrapGame(game)], r) and
+               r.count > 0 and r.first.kind == vkBool and not r.first.b:
+              keep = true   # onPickup returned false: not taken (yet)
         if not keep:
           removeThing(t)
           continue
