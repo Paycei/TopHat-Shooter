@@ -18,6 +18,7 @@
 
 import std/[tables, json]
 import ../modding/mod_patch_core
+from ../modding/mod_hooks import modCoopShareRunData
 import ../network/[network, network_types]
 import ../types, ../save_system, ../run_statistics
 import coop_context, coop_codec, coop_wire, coop_smooth
@@ -98,6 +99,7 @@ type
     joinHost: string
     joinPort: int
     joinRequest: CoopMemberNet     ## nickname + cosmetics, resent until answered
+    joinProfile: string            ## this player's profile id, sent with it
     joinTimer, joinRetryTimer: float32
     clientRing: FrameRing
     frags: Table[int32, FragBuf]
@@ -108,6 +110,11 @@ type
     intentSeqOut: int32
     profileApplied: int32
     fxLast: uint32                 ## the newest effect id taken from a snapshot
+    readyWanted*: bool             ## this player's ready flag as asked for (the host's lobby
+    wantKit: int32                 ## shows it once it arrives: resent until it does)
+    wantRecursion: float32
+    wantRecursionLevel: int32
+    readyResendTimer: float32
 
 var
   activeCoop*: CoopSession
@@ -144,14 +151,16 @@ proc nextIntentSeq*(s: CoopSession): int32 {.inline.} =
 # ------------------------------------------------------------- opening ----
 
 proc hostCoop*(port: int, maxPlayers: int, me: CoopMemberNet,
-               config: CoopRunConfigNet): CoopSession {.moddable.} =
+               config: CoopRunConfigNet, profileId = ""): CoopSession {.moddable.} =
   ## Open a lobby on `port` for up to `maxPlayers` (2-4) and make it the
-  ## active session; `me` is the host's nickname and cosmetics. Raises OSError
-  ## if the port can't be opened.
+  ## active session; `me` is the host's nickname and cosmetics, `profileId`
+  ## its profile's (save_system.profileUid: a join with it is refused). Raises
+  ## OSError if the port can't be opened.
   result = CoopSession(phase: cpHostLobby, isHost: true, config: config, mySlot: 0,
                        maxPlayers: clamp(maxPlayers, 2, MaxCoopPlayers))
   result.nm = newNetworkManager()
   result.nm.hostNickname = me.nickname
+  result.nm.hostProfileId = profileId
   result.nm.initHost(port, result.maxPlayers, LobbyCoop, CoopLayoutHash)
   var host = me
   host.slot = 0
@@ -164,12 +173,14 @@ proc sendJoinRequest(s: CoopSession) =
   let me = s.joinRequest
   s.nm.connectToHost(s.joinHost, s.joinPort, me.skinType.int, me.bulletSkinType.int,
                      me.shapeType.int, me.particleSkinType.int,
-                     me.nickname, LobbyCoop, CoopLayoutHash)
+                     me.nickname, LobbyCoop, CoopLayoutHash, s.joinProfile)
 
-proc joinCoop*(host: string, port: int, me: CoopMemberNet): CoopSession {.moddable.} =
-  ## Ask the host at `host`:`port` for a seat and make this the active session.
+proc joinCoop*(host: string, port: int, me: CoopMemberNet, profileId = ""): CoopSession {.moddable.} =
+  ## Ask the host at `host`:`port` for a seat and make this the active
+  ## session; `profileId` names this player's profile (a host refuses one
+  ## already in its game).
   result = CoopSession(phase: cpJoining, isHost: false, joinHost: host, joinPort: port,
-                       joinRequest: me)
+                       joinRequest: me, joinProfile: profileId)
   result.nm = newNetworkManager()
   result.nm.initClient()
   result.sendJoinRequest()
@@ -236,6 +247,21 @@ proc setLobbyConfig*(s: CoopSession, config: CoopRunConfigNet) {.moddable.} =
   s.config = config
   s.broadcastLobby()
 
+proc sendReady(s: CoopSession) =
+  ## Client: the ready flag and kit it asked for, to the host.
+  var p = newPacket(ptCoopReady)
+  p.readyFlag = s.readyWanted
+  p.readyKit = s.wantKit
+  p.readyRecursion = s.wantRecursion
+  p.readyRecursionLevel = s.wantRecursionLevel
+  s.nm.sendPacket(p)
+  s.readyResendTimer = 0
+
+proc readyConfirmed(s: CoopSession): bool =
+  ## Client: the host's lobby shows this player as they asked to be.
+  let i = s.memberIndex(s.mySlot)
+  i >= 0 and s.members[i].ready == s.readyWanted and s.members[i].starterKit == s.wantKit
+
 proc setReady*(s: CoopSession, ready: bool, kit: int32, recursion = 0'f32,
                recursionLevel = 0'i32) {.moddable.} =
   ## This player is (not) ready, with their roguelite starter kit and the
@@ -246,16 +272,15 @@ proc setReady*(s: CoopSession, ready: bool, kit: int32, recursion = 0'f32,
       s.members[0].starterKit = kit
       s.broadcastLobby()
   else:
+    s.readyWanted = ready
+    s.wantKit = kit
+    s.wantRecursion = recursion
+    s.wantRecursionLevel = recursionLevel
     let i = s.memberIndex(s.mySlot)
     if i >= 0:
       s.members[i].ready = ready   # shown at once; the host's lobby confirms it
       s.members[i].starterKit = kit
-    var p = newPacket(ptCoopReady)
-    p.readyFlag = ready
-    p.readyKit = kit
-    p.readyRecursion = recursion
-    p.readyRecursionLevel = recursionLevel
-    s.nm.sendPacket(p)
+    s.sendReady()
 
 proc startCoopRun*(s: CoopSession) {.moddable.} =
   ## Host: the run starts. main.nim builds it (startRequested) and the
@@ -340,6 +365,7 @@ proc backToLobby*(s: CoopSession) {.moddable.} =
   s.clientRing.clear()
   s.lastApplied = 0
   s.pendingActions.setLen(0)
+  s.readyWanted = false   # (the host un-readied everyone when the run ended)
   if s.isHost:
     s.nm.renumberSeats()   # seats 1..n again (a client may have left mid-run)
     s.rebuildMembers()
@@ -358,6 +384,13 @@ proc applyIntent(game: Game, slot: int32, it: PlayerIntent) =
   next.seen = p.intent.seen
   for e in IntentEdge:
     if next.edges[e] < p.intent.edges[e]: next.edges[e] = p.intent.edges[e]
+  if next.view3D and game.state != gs3DBoss:
+    # Its last input from a 3D world that has ended (its aim is a yaw and a
+    # pitch): the 2D player keeps their aim and holds fire until a 2D one comes.
+    next.aim = p.intent.aim
+    next.view3D = false
+    next.fireHeld = false
+    next.fireKey = false
   p.intent = next
 
 proc playerLeft(s: CoopSession, game: Game, slot: int32) =
@@ -433,6 +466,7 @@ proc hostSnapshots(s: CoopSession, game: Game, dt: float32) =
   let fx = s.fxPrev & fresh
   s.fxPrev = fresh
   inc s.snapSeq
+  modCoopShareRunData(game)   # the mods' run.data rides in the run (Game.modRunData)
   let frame = captureFrame(game, s.snapSeq)
   s.hostRing.put(frame)
   for m in s.members:
@@ -670,6 +704,11 @@ proc pollCoopSession*(s: CoopSession, game: Game, dt: float32) {.moddable.} =
       s.flushEnds(force = s.endWait >= EndAckTimeout)
     else: discard
   else:
+    if s.phase == cpClientLobby:
+      # A lost ready (or kit) goes again until the host's lobby shows it.
+      s.readyResendTimer += dt
+      if s.readyResendTimer >= LobbyInterval and not s.readyConfirmed:
+        s.sendReady()
     if s.phase == cpRunning:
       if not built: return   # (the fragments wait in rawInbox for the mirror)
       s.snapshotAge += dt

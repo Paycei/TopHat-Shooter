@@ -399,7 +399,7 @@ function ui.toast(...) end
 world3d = {}
 ---world3d.active() -> is a 3D world being played?
 function world3d.active(...) end
----world3d.aim() -> x, y, z, dx, dy, dz: the camera position and where it looks
+---world3d.aim() -> x, y, z, dx, dy, dz: the player's eye and where they look (this machine's camera; in co-op, the player whose turn it is: the one shooting in world3dShoot)
 function world3d.aim(...) end
 function world3d.arena(...) end
 ---world3d.boss() -> a snapshot table of the boss (read-only copy), nil without one
@@ -426,7 +426,7 @@ function world3d.platform(...) end
 function world3d.projectile(...) end
 ---world3d.raycast(x, y, z, dx, dy, dz [, maxDist = 1000]) -> {kind, dist, x, y, z, entity, platform}
 function world3d.raycast(...) end
----world3d.shake(intensity) -- the camera trembles for `intensity` seconds (max 5)
+---world3d.shake(intensity) -- the camera trembles for `intensity` seconds (max 5); in co-op, the screen of the player whose turn it is (everyone's outside one)
 function world3d.shake(...) end
 function world3d.spawn(...) end
 ---world3d.toScreen(x, y, z) -> screen x, y, visible (in front of the camera and on screen)
@@ -1050,18 +1050,18 @@ function engine.coop_session.closeCoop(s, reason) end
 function engine.coop_session.endCoopRun(s, reason) end
 ---endStatistics(s: CoopSession): RunStatistics
 function engine.coop_session.endStatistics(s) end
----hostCoop(port: int, maxPlayers: int, me: CoopMemberNet, config: CoopRunConfigNet): CoopSession
-function engine.coop_session.hostCoop(port, maxPlayers, me, config) end
----joinCoop(host: string, port: int, me: CoopMemberNet): CoopSession
-function engine.coop_session.joinCoop(host, port, me) end
+---hostCoop(port: int, maxPlayers: int, me: CoopMemberNet, config: CoopRunConfigNet, profileId: string): CoopSession
+function engine.coop_session.hostCoop(port, maxPlayers, me, config, profileId) end
+---joinCoop(host: string, port: int, me: CoopMemberNet, profileId: string): CoopSession
+function engine.coop_session.joinCoop(host, port, me, profileId) end
 ---pollCoopSession(s: CoopSession, game: Game, dt: float32)
 function engine.coop_session.pollCoopSession(s, game, dt) end
 ---readyToStart(s: CoopSession): bool
 function engine.coop_session.readyToStart(s) end
 ---setLobbyConfig(s: CoopSession, config: CoopRunConfigNet)
 function engine.coop_session.setLobbyConfig(s, config) end
----setReady(s: CoopSession, ready: bool, kit: int32)
-function engine.coop_session.setReady(s, ready, kit) end
+---setReady(s: CoopSession, ready: bool, kit: int32, recursion: float32, recursionLevel: int32)
+function engine.coop_session.setReady(s, ready, kit, recursion, recursionLevel) end
 ---startCoopRun(s: CoopSession)
 function engine.coop_session.startCoopRun(s) end
 
@@ -1616,6 +1616,8 @@ function engine.game.updateGame(game, dt) end
 function engine.game.updatePresentationLists(game, dt) end
 
 engine.game_3d = {}
+---aimView3D(world: Game3D): tuple[eye: Vector3, dir: Vector3]
+function engine.game_3d.aimView3D(world) end
 ---damageBoss3D(world: Game3D, amount: float32)
 function engine.game_3d.damageBoss3D(world, amount) end
 ---damageEntity3D(world: Game3D, e: Entity3D, amount: float32): float32
@@ -1658,6 +1660,8 @@ function engine.game_3d.renderGame3D(world) end
 function engine.game_3d.requestFinish3D(world, result) end
 ---seatPlayers3D(world: Game3D, players2D: seq[Player], coop: CoopState)
 function engine.game_3d.seatPlayers3D(world, players2D, coop) end
+---shakeView3D(world: Game3D, seconds: float32)
+function engine.game_3d.shakeView3D(world, seconds) end
 ---spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32, color: Color)
 function engine.game_3d.spawnDamageNumber3D(damageNumbers, pos, damage, color) end
 ---sweepDead(world: Game3D)
@@ -2877,6 +2881,8 @@ function engine.save_system.migrateLegacySaveFiles() end
 function engine.save_system.needObject(j) end
 ---profileExists(slot: int): bool
 function engine.save_system.profileExists(slot) end
+---profileUid(slot: int): string
+function engine.save_system.profileUid(slot) end
 ---runStatisticsToJson(runStats: RunStatistics): JsonNode
 function engine.save_system.runStatisticsToJson(runStats) end
 ---saveLastRunStats(runStats: RunStatistics): bool
@@ -4088,6 +4094,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "game.updateGame"
 ---| "game.updatePresentationLists"
 ---| "game_3d.addEntity3D"
+---| "game_3d.aimView3D"
 ---| "game_3d.allocId3D"
 ---| "game_3d.damageBoss3D"
 ---| "game_3d.damageEntity3D"
@@ -4108,6 +4115,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "game_3d.renderGame3D"
 ---| "game_3d.requestFinish3D"
 ---| "game_3d.seatPlayers3D"
+---| "game_3d.shakeView3D"
 ---| "game_3d.spawnDamageNumber3D"
 ---| "game_3d.sweepDead"
 ---| "game_3d.teamOut3D"
@@ -4664,6 +4672,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "save_system.markStorySeen"
 ---| "save_system.migrateLegacySaveFiles"
 ---| "save_system.profileExists"
+---| "save_system.profileUid"
 ---| "save_system.runStatisticsToJson"
 ---| "save_system.saveLastRunStats"
 ---| "save_system.saveSettings"

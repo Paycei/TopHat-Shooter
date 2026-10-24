@@ -40,6 +40,8 @@ type
     gravity*: float32     # multiplier on the arena's gravity (0 = flies straight)
     pierce*: int          # extra targets it passes through before it is spent
     ownerId*: int         # id of the entity that fired it (0 = the player, the boss or a script)
+    shooter*: int32       # 1 + the seat of the player whose weapon fired it (0 = none); its
+                          # hits land in that player's turn (world3dHit, world3dEntityDeath)
     tag*: string          # mod-chosen kind, for scripts
     hitIds*: seq[int]     # entities a piercing shot already hit
     removed*: bool        # swept out of the world (scripts holding it see "no longer exists")

@@ -76,6 +76,9 @@ proc replayCoopFx*(game: var Game) {.moddable.} =
       if not activeWorld3D.isNil:
         spawnDamageNumber3D(activeWorld3D.damageNumbers, Vector3(x: ev.x, y: ev.y, z: ev.z),
                             clamp(ev.w, 0'f32, 1.0e9'f32), ev.color)
+    of fxShake3D:
+      if mine and not activeWorld3D.isNil:
+        activeWorld3D.camera.shakeTime = clamp(ev.x, 0'f32, 5'f32)
     of fxPlayerSignal:
       if enumOk(ev.a, DamageEvent) and ev.b >= 0 and ev.b < game.players.len:
         game.players[ev.b].lastDamageEvent = DamageEvent(ev.a)

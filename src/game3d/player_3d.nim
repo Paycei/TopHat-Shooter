@@ -47,6 +47,7 @@ proc capture3DIntent*(p: Player3D, cam: var FPSCamera, sensitivity: float32) {.m
   let len = sqrt(move.x * move.x + move.y * move.y)
   it.move = if len > 0: Vector2(x: move.x / len, y: move.y / len) else: move
   it.aim = Vector2(x: cam.yaw, y: cam.pitch)
+  it.view3D = true
   it.wallHeld = isKeyDown(KeyboardKey.LeftShift)
   it.fireHeld = isMouseButtonDown(MouseButton.Left)
   if isMouseButtonPressed(MouseButton.Left): pressEdge(it, Edge3DTrigger)
@@ -108,6 +109,7 @@ proc fireWeapon*(player: Player3D, camera: FPSCamera, projectiles: var seq[Proje
         damage: player.weapon.damage,
         lifetime: 3.0,
         fromPlayer: true,
+        shooter: player.slot + 1,
         active: true,
         radius: player.weapon.projectileRadius,
         color: player.weapon.projectileColor

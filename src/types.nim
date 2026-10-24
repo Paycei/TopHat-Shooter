@@ -778,6 +778,9 @@ type
     ## devices, so every player in a run is driven the same way.
     move*: Vector2       ## movement, each axis -1..1, length <= 1
     aim*: Vector2        ## the pointer in world coords (also where walls go)
+    view3D*: bool        ## `aim` is a 3D world's view instead, (yaw, pitch) in degrees
+                         ## (player_3d.capture3DIntent): a co-op host keeps a 3D seat's
+                         ## view until its client's input says it looks through one
     aimByDir*: bool      ## a pad aims: fire along aimDir from the player instead of at `aim`
     aimDir*: Vector2     ## the right stick's direction (unit) while aimByDir
     aimAssist*: bool     ## this player's aim assist setting (pad aim only)

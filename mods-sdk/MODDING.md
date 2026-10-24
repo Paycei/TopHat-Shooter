@@ -1675,6 +1675,7 @@ they read and write by field name, and vectors are live views:
 | `camera.*` | `position`, `target`, `up`, `fovy`, `yaw`, `pitch`, `shakeTime` (`shake`, the strength drawn, is worked out from it every frame) |
 | `player.*` | `pos`, `vel`, `health`, `maxHealth`, `speed`, `sprintMultiplier`, `jumpForce`, `jumpsRemaining`, `maxJumps`, `grounded`, `radius`, `invulnTimer`, `hitInvuln`, `canJump`, `gravityScale` |
 | `player.weapon.*` | `ammo`, `maxAmmo`, `damage`, `fireRate`, `fireTimer`, `projectileSpeed`, `projectileRadius`, `projectileColor`, `spread`, `pellets`, `automatic`, `reloadTime`, `reloadTimer`, `infiniteAmmo` |
+| `players[i]` | every player in the world, with the `player.*` fields and their co-op `slot`: just `player` in a solo run, one per seat in [co-op](#co-op). `player` is the one whose turn it is |
 | `rules.*` | `exitOnBossDeath`, `exitOnPlayerDeath`, `timeLimit`, `timeLimitWins`, `allowReload`, `autoFire`, `mouseSensitivity` |
 
 Units are the game's 3D units: the player walks at 75, a world's arena has radius
@@ -1814,7 +1815,9 @@ live ones (`for p in world:pickups() do`).
   time all apply. `world3d.healPlayer(n)`.
 * `world3d.shake(seconds)` trembles the camera for that long (0 to 5), strongest
   at the start and fading to nothing. It sets `camera.shakeTime`; a second call
-  restarts the timer. The game's own boss fight never shakes.
+  restarts the timer. The game's own boss fight never shakes. In co-op it
+  shakes the screen of the player whose turn it is (in `world3dShoot`, the
+  shooter's), or everyone's outside a player's turn.
 * `world3d.boss()` is a read-only snapshot of the boss (`nil` without one);
   `world3d.damageBoss(n)` hurts its core directly and returns whether there was
   a boss to hurt. The boss's other fields (`world.boss.phase`,
@@ -1823,7 +1826,10 @@ live ones (`for p in world:pickups() do`).
   `{kind, dist, x, y, z, entity, platform}`. `kind` is `"none"`, `"floor"` (the solid floor), `"platform"`
   (with its `platform` number), `"entity"` (with the `entity`), `"boss"` or
   `"satellite"`; `x y z` is the hit point.
-* `world3d.aim()` returns `x, y, z, dx, dy, dz`: the camera and where it points.
+* `world3d.aim()` returns `x, y, z, dx, dy, dz`: the player's eye and where they
+  look (the camera). In co-op it is the player whose turn it is: in
+  `world3dShoot`, the one shooting, so `world3d.raycast(world3d.aim())` there
+  finds what *they* aimed at; in the drawing hooks, this machine's own player.
 * `world3d.toScreen(x, y, z)` returns `screenX, screenY, visible`.
 * `world3d.damageNumber(x, y, z, amount [, color])` floats a number.
 
@@ -2237,8 +2243,29 @@ several times a second. So:
   host's scripts are the ones that change the run.
 * Everyone must have the same mods loaded: the host refuses anyone else.
 
-Your data travels with the run: `run.data` and an entity's `e.data` are on
-the host, where the hooks that use them run.
+**What everyone must see goes in `run.data`.** The host's `run.data` (and the
+HUD parts its scripts hid with `hud.hide`) reaches every client with the run, so
+a client's drawing hooks read the host's copy; a client's own writes there last
+only until the host's copy next changes. An entity's `e.data`, and anything in
+your script's own variables (a `local` table, a global), stay on the machine
+that wrote them: on a client they are whatever its own copy of the script left
+there. So if a shot pauses a video, keep `paused` in `run.data` and read it
+from `world3dDraw`, not from a local the host's `world3dShoot` set. It goes
+out several times a second whenever it changes, so keep big tables elsewhere.
+
+In a 3D world:
+
+* Your `world3dStart` sees the host's player as `world.player`. Wherever you
+  put it (or `world.spawnPos`) the whole team goes, side by side, and
+  everyone starts looking where you turned `world.camera`. To change every
+  player (their weapon, their health), loop over `world.players`.
+* A hook about one player runs in their turn, with them as `world.player`
+  (and `world3d.player`): `world3dShoot`, `world3dPickup`,
+  `world3dPlayerDamaged`, and the hits and kills of their shots
+  (`world3dHit`, `world3dEntityDeath`). `world3d.aim()` and `world3d.shake`
+  follow it. `world3dStart` and `world3dUpdate` run once for the world.
+* Each machine has its own camera and pause overlay: `world.camera` and
+  `world.paused` are this machine's, in the drawing hooks as anywhere.
 
 ### The `coop` table
 

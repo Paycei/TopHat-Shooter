@@ -12,7 +12,7 @@ const
   # bullet, and a busy match with FORK.EXE triple shots can pass 8 KB; a smaller
   # buffer silently truncated those datagrams and they failed to deserialize.
   MAX_PACKET_SIZE = 65507
-  NETWORK_VERSION* = "3.0.4"   # 3.0.4: co-op seats carry their banked Recursion; 3.0.3: co-op snapshot sections per field, the 3D world; 3.0.2: co-op snapshots carry effects; 3.0.1: co-op actions name their modal; 3.0.0: co-op packets, lobby kind and layout hash
+  NETWORK_VERSION* = "3.0.5"   # 3.0.5: a co-op join names its profile, a 3D intent says it is one; 3.0.4: co-op seats carry their banked Recursion; 3.0.3: co-op snapshot sections per field, the 3D world; 3.0.2: co-op snapshots carry effects; 3.0.1: co-op actions name their modal; 3.0.0: co-op packets, lobby kind and layout hash
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 512   # a co-op snapshot arrives as many fragments
   PACKET_MAGIC = "THS1"
@@ -196,6 +196,7 @@ type
     nickname*: string
     modSkin*: int16
     modBulletSkin*: int16
+    profileId*: string   ## the profile it joined with ("" when it named none)
 
   NetworkManager* = ref object
     role*: NetworkRole
@@ -221,6 +222,8 @@ type
                           ## every call, on the frame.
     lobbyKind*: int32     ## Host: LobbyPvP or LobbyCoop; a request of the other kind is refused
     layoutHash*: uint32   ## Host (co-op): a client whose run state's layout differs is refused
+    hostProfileId*: string  ## Host (co-op): its own profile's id; a join with it (or with a
+                            ## seated client's) is refused: one profile, one seat
     rawInbox*: seq[string]  ## Client: co-op snapshot fragments from the host, for coop_session
 
 # Construction
@@ -285,7 +288,8 @@ proc initClient*(nm: NetworkManager) =
 proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
                    skinType: int = 0, bulletSkinType: int = 0,
                    shapeType: int = 0, particleSkinType: int = 0,
-                   nickname: string = "Player", lobbyKind = LobbyPvP, layoutHash = 0'u32) =
+                   nickname: string = "Player", lobbyKind = LobbyPvP, layoutHash = 0'u32,
+                   profileId = "") =
   nm.remoteAddr = host
   nm.remotePort = Port(port)
   nm.hostIpKnown = false
@@ -302,6 +306,7 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
   packet.requestModBulletSkin = int16(equippedCosmetic[mckBullet])
   packet.lobbyKind = lobbyKind
   packet.layoutHash = layoutHash
+  packet.profileId = profileId
   try:
     nm.socket.sendTo(host, Port(port), serialize(packet))
     echo "[NETWORK] Connection request sent to ", host, ":", port
@@ -597,6 +602,20 @@ proc pollEvents*(nm: NetworkManager,
         echo "[NETWORK] Connection denied (match in progress): ", address, ":", port.int
         continue
 
+      # One profile, one seat: its rewards go to one save, and two games
+      # writing the same profile would undo each other's progress.
+      if packet.profileId.len > 0:
+        var taken = packet.profileId == nm.hostProfileId
+        for client in nm.clients:
+          if client.profileId == packet.profileId: taken = true
+        if taken:
+          var deny = newPacket(ptConnectionDenied)
+          deny.connectionReason = "That profile is already in this game"
+          deny.assignedPlayerIndex = -1
+          nm.sendTo(address, port, deny)
+          echo "[NETWORK] Connection denied (profile already seated): ", address, ":", port.int
+          continue
+
       if nm.clients.len >= nm.maxPlayers - 1:
         var deny = newPacket(ptConnectionDenied)
         deny.connectionReason = "Room is full (" & $nm.clients.len & "/" & $(nm.maxPlayers - 1) & " clients)"
@@ -617,7 +636,8 @@ proc pollEvents*(nm: NetworkManager,
         particleSkinType: packet.requestParticleSkinType,
         nickname: packet.playerName,
         modSkin: packet.requestModSkin,
-        modBulletSkin: packet.requestModBulletSkin
+        modBulletSkin: packet.requestModBulletSkin,
+        profileId: packet.profileId
       ))
       nm.isConnected = true
 

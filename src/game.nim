@@ -5940,14 +5940,24 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
       if live: modPreUpdate(game, dt)
       if live and coopHost():
         # The clients' input reached their 2D players (coop_session): hand it
-        # to their 3D selves, whose press counts this world keeps.
+        # to their 3D selves, whose press counts this world keeps (none is
+        # left pending for the 2D self to act on when the world ends). A
+        # client still on its way in sends a 2D pointer: its seat keeps the
+        # view it was given. One who left the run is out of the world too.
         for p3 in world.players:
           if p3.slot == localSlot: continue
           for p in game.players:
             if p.slot == p3.slot:
+              if not game.coop.isNil and game.coop.left[p.slot] and not p3.eliminated:
+                p3.eliminated = true
+                p3.health = 0
+                p3.downTimer = 0
+                p3.vel = Vector3()
               var it = p.intent
               it.seen = p3.intent.seen
+              if not it.view3D: it.aim = p3.intent.aim
               p3.intent = it
+              p.intent.seen = p.intent.edges
       updateGame3D(world, dt)
       if live:
         if world.modeKey.len > 0:

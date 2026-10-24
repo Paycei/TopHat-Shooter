@@ -1,4 +1,4 @@
-import json, os, std/tables, strutils, raylib
+import json, os, std/[tables, random], strutils, raylib
 import modding/mod_patch_core
 import particle_types, run_statistics, types, utils, powerup_data, enemy_config
 
@@ -250,13 +250,44 @@ proc loadProfileDifficulty*(slot: int): GameDifficulty {.moddable.} =
   except CatchableError:
     echo "Warning: could not read profile meta for slot ", slot
 
+proc readProfileMeta(slot: int): JsonNode =
+  ## The slot's profile.json, or an empty object.
+  result = newJObject()
+  try:
+    let path = getProfileMetaPath(slot)
+    if fileExists(path):
+      let meta = parseJson(readFile(path))
+      if meta.kind == JObject: result = meta
+  except CatchableError:
+    discard
+
+proc newProfileUid(): string =
+  ## 16 hex digits from the OS's randomness (std/random's unseeded initRand).
+  var r = initRand()
+  toHex(r.next(), 16)
+
+proc profileUid*(slot: int): string {.moddable.} =
+  ## The profile's identity: random, made once and kept in its profile.json.
+  ## A co-op host refuses a second seat for it (one profile, one save, one
+  ## seat). "" when the meta can't be read or written.
+  let meta = readProfileMeta(slot)
+  result = meta{"uid"}.getStr("")
+  if result.len > 0 or not profileExists(slot): return
+  result = newProfileUid()
+  meta["uid"] = %result
+  try:
+    writeFile(getProfileMetaPath(slot), pretty(meta))
+  except CatchableError:
+    result = ""
+
 proc createProfile*(slot: int, difficulty: GameDifficulty): bool {.moddable.} =
   ## Creates the slot folder and its profile.json meta. Safe to call on an
-  ## existing slot (rewrites the meta only).
+  ## existing slot (rewrites the difficulty only; the profile keeps its uid).
   try:
     createDir(getProfileDir(slot))
+    let uid = readProfileMeta(slot){"uid"}.getStr("")
     writeFile(getProfileMetaPath(slot),
-              pretty(%* {"difficulty": $difficulty}))
+              pretty(%* {"difficulty": $difficulty, "uid": (if uid.len > 0: uid else: newProfileUid())}))
     echo "Created profile ", slot, " (", $difficulty, ")"
     true
   except CatchableError:

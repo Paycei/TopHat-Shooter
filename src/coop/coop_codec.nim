@@ -415,14 +415,23 @@ proc applySnapshot*(frame: WireFrame, game: Game) {.moddable.} =
         activeWorld3D = nil
         game.game3D = nil
       return
+    if fresh and not world.startFired:
+      return   # (its first frame hasn't run: the scripts haven't built it or set the view yet)
     world.coop = game.coop
     world.player = world.players[0]
     for p in world.players:
       if p.slot == localSlot: world.player = p
     if fresh:
+      # This machine's view starts where the host seated its player looking,
+      # and its presses count on from its 2D self's: the host keeps one count
+      # per player, and a count that went back to 0 would be no press at all.
       world.camera = initCamera3D(world.player.pos + vec3(0, 2, 0))
       world.camera.yaw = world.player.yaw
       world.camera.pitch = world.player.pitch
+      if localSlot >= 0 and localSlot < game.players.len:
+        let counts = game.players[localSlot].intent.edges
+        world.player.intent.edges = counts
+        world.player.intent.seen = counts
       activeWorld3D = world
       game.game3D = cast[pointer](world)
   elif ours:

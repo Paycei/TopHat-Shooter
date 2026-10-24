@@ -68,6 +68,7 @@ proc botIntent*(game: Game, p: Player, frame: int) =
              Vector2(x: game.screenWidth.float32 * 0.5'f32, y: game.screenHeight.float32 * 0.4'f32)
            else: nearest.pos
   it.aimByDir = false
+  it.view3D = false
   it.fireHeld = not nearest.isNil
   it.fireKey = false
   it.wallHeld = false
@@ -114,4 +115,5 @@ proc botIntent3D*(world: Game3D, p: Player3D, frame: int) =
   it.wallHeld = false
   if has and frame mod 9 == 0: pressEdge(it, Edge3DTrigger)
   if (frame + int(p.slot) * 37) mod 240 == 0: pressEdge(it, Edge3DJump)
+  it.view3D = true
   p.intent = it

@@ -317,7 +317,7 @@ The Lua 5.5 standard library is all there too (`io`, `os`, `debug`, `package`, `
 ### `world3d`
 
 - `world3d.active`: world3d.active() -> is a 3D world being played?
-- `world3d.aim`: world3d.aim() -> x, y, z, dx, dy, dz: the camera position and where it looks
+- `world3d.aim`: world3d.aim() -> x, y, z, dx, dy, dz: the player's eye and where they look (this machine's camera; in co-op, the player whose turn it is: the one shooting in world3dShoot)
 - `world3d.arena`
 - `world3d.boss`: world3d.boss() -> a snapshot table of the boss (read-only copy), nil without one
 - `world3d.clearPlatforms`
@@ -333,7 +333,7 @@ The Lua 5.5 standard library is all there too (`io`, `os`, `debug`, `package`, `
 - `world3d.platform`: world3d.platform{x, y, z, w, h, d, ...} -> its 1-based index in world.arena.platforms
 - `world3d.projectile`
 - `world3d.raycast`: world3d.raycast(x, y, z, dx, dy, dz [, maxDist = 1000]) -> {kind, dist, x, y, z, entity, platform}
-- `world3d.shake`: world3d.shake(intensity) -- the camera trembles for `intensity` seconds (max 5)
+- `world3d.shake`: world3d.shake(intensity) -- the camera trembles for `intensity` seconds (max 5); in co-op, the screen of the player whose turn it is (everyone's outside one)
 - `world3d.spawn`
 - `world3d.toScreen`: world3d.toScreen(x, y, z) -> screen x, y, visible (in front of the camera and on screen)
 
@@ -890,12 +890,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `closeCoop(s: CoopSession, reason: string)`
 - **moddable** `endCoopRun(s: CoopSession, reason: CoopEndReason)`
 - **moddable** `endStatistics(s: CoopSession): RunStatistics`
-- **moddable** `hostCoop(port: int, maxPlayers: int, me: CoopMemberNet, config: CoopRunConfigNet): CoopSession`
-- **moddable** `joinCoop(host: string, port: int, me: CoopMemberNet): CoopSession`
+- **moddable** `hostCoop(port: int, maxPlayers: int, me: CoopMemberNet, config: CoopRunConfigNet, profileId: string): CoopSession`
+- **moddable** `joinCoop(host: string, port: int, me: CoopMemberNet, profileId: string): CoopSession`
 - **moddable** `pollCoopSession(s: CoopSession, game: Game, dt: float32)`
 - **moddable** `readyToStart(s: CoopSession): bool`
 - **moddable** `setLobbyConfig(s: CoopSession, config: CoopRunConfigNet)`
-- **moddable** `setReady(s: CoopSession, ready: bool, kit: int32)`
+- **moddable** `setReady(s: CoopSession, ready: bool, kit: int32, recursion: float32, recursionLevel: int32)`
 - **moddable** `startCoopRun(s: CoopSession)`
 
 ### `coop_smooth`
@@ -1277,6 +1277,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `game_3d`
 
 - **moddable** `addEntity3D(world: Game3D, e: Entity3D)` (wrap only: scripts cannot call it)
+- **moddable** `aimView3D(world: Game3D): tuple[eye: Vector3, dir: Vector3]`
 - **moddable** `allocId3D(world: Game3D): int` (wrap only: scripts cannot call it)
 - **moddable** `damageBoss3D(world: Game3D, amount: float32)`
 - **moddable** `damageEntity3D(world: Game3D, e: Entity3D, amount: float32): float32`
@@ -1299,6 +1300,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `renderGame3D(world: Game3D)`
 - **moddable** `requestFinish3D(world: Game3D, result: World3DResult)`
 - **moddable** `seatPlayers3D(world: Game3D, players2D: seq[Player], coop: CoopState)`
+- **moddable** `shakeView3D(world: Game3D, seconds: float32)`
 - **moddable** `spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32, color: Color)`
 - **moddable** `sweepDead(world: Game3D)`
 - **moddable** `teamOut3D(world: Game3D): bool`
@@ -2144,6 +2146,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `migrateLegacySaveFiles()`
 - `needObject(j: JsonNode)`
 - **moddable** `profileExists(slot: int): bool`
+- **moddable** `profileUid(slot: int): string`
 - **moddable** `runStatisticsToJson(runStats: RunStatistics): JsonNode`
 - **moddable** `saveLastRunStats(runStats: RunStatistics): bool`
 - **moddable** `saveSettings(settings: Settings): bool`

@@ -116,7 +116,7 @@ proc drawCrashShot(local, duration: float32, sw, sh: int32, alpha: float32) =
 proc newReinstallShot(): CutsceneDrawProc =
   var icons: seq[DesktopIcon]
   for icon in newOSDesktop().icons:
-    if icon.iconType notin {diCredits, diFeedback, diMods, diModApp, diModMode} and icons.len < 8:
+    if icon.iconType notin {diCredits, diFeedback, diMods, diCoop, diModApp, diModMode} and icons.len < 8:
       icons.add(icon)
   let title = t(tkSurEndInstallerTitle)
   let formatting = t(tkSurEndInstallerFormat)

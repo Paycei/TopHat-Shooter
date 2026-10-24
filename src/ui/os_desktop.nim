@@ -121,6 +121,15 @@ const
     ## Distance from an icon's y to the bottom of its hover/label block (see the
     ## hit box in handleDesktopInput). This, not ICON_SIZE, is what has to clear
     ## the taskbar for an icon to be fully visible and clickable.
+  SYSTEM_MONITOR_Y = 12
+  SYSTEM_MONITOR_H = 128
+    ## The System Monitor panel (top-right). The corner stack stays below it.
+  CORNER_TOP_GAP = 6
+    ## Room between the monitor and the highest corner icon (the selected tile
+    ## pulses a few pixels above its slot).
+  CORNER_MIN_SPACING = ICON_SIZE + 24
+    ## The tightest the corner stack packs: an icon's label (drawn at y + 72,
+    ## 14 px and its shadow) ends just above the next tile.
   DESKTOP_GRID_ROWS = 6
     ## Rows per column in the designed layout (12 grid icons = two full columns).
     ## It is a maximum, not a fixed shape: layoutDesktopIcons drops to fewer rows
@@ -174,8 +183,10 @@ proc isCornerIcon(iconType: DesktopIconType): bool =
   ## Icons that are pinned to a screen corner instead of living on the top-left
   ## grid. They are excluded from the grid flow and from its column arithmetic.
   ## They stack upward from the bottom-right corner in reverse seq order, so the
-  ## last one in the seq sits in the corner itself.
-  iconType in {diMods, diFeedback, diCredits}
+  ## last one in the seq sits in the corner itself. (The launcher grid is two
+  ## columns of six, all that fits above the taskbar: a new built-in icon that
+  ## isn't a launcher goes here, as CO-OP.EXE did.)
+  iconType in {diMods, diCoop, diFeedback, diCredits}
 
 proc isModIcon(iconType: DesktopIconType): bool =
   ## Mod icons (game modes, then apps): flowed like the grid, but in columns of
@@ -256,10 +267,11 @@ proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) {.m
   ## Re-flow the desktop icons for the current logical viewport. The grid is
   ## column-major and fills top-to-bottom, so a shorter viewport simply starts a
   ## new column sooner rather than running off the bottom. The corner icons
-  ## (diFeedback over diCredits) are not part of the grid: they are pinned to
-  ## the bottom-right corner, so their slots follow
-  ## the virtual canvas (1024 classic vs 1366 widescreen, switchable at runtime)
-  ## as well as the scale.
+  ## (isCornerIcon) are not part of the grid: they are pinned to the
+  ## bottom-right corner, so their slots follow the virtual canvas (1024
+  ## classic vs 1366 widescreen, switchable at runtime) as well as the scale,
+  ## and they pack closer when the stack would reach the System Monitor (a
+  ## short viewport: UI scale above 100%).
   if desktop.isNil:
     return
   # The label is wider than the icon and drawn centred on it, so the visual
@@ -302,16 +314,23 @@ proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) {.m
 
   let cornerX = screenWidth - DESKTOP_MARGIN_RIGHT - ICON_SIZE - labelOverhang
   let cornerY = screenHeight - TASKBAR_HEIGHT - DESKTOP_MARGIN_BOTTOM - ICON_HOVER_BOTTOM
+  let cornerTop = SYSTEM_MONITOR_Y + SYSTEM_MONITOR_H + CORNER_TOP_GAP
   var cornerCount = 0
   for icon in desktop.icons:
     if isCornerIcon(icon.iconType):
       inc cornerCount
+  # The whole stack stays under the System Monitor: at the grid's spacing when
+  # it fits, else packed closer (down to CORNER_MIN_SPACING), never wrapped
+  # into a second column, which is where the mod icons' columns would run.
+  let cornerSpacing = if cornerCount <= 1: ICON_SPACING
+                      else: clamp((cornerY - cornerTop) div (cornerCount - 1),
+                                  CORNER_MIN_SPACING, ICON_SPACING)
   var cornerSlot = 0
   for icon in desktop.icons.mitems:
     if isCornerIcon(icon.iconType):
       let above = cornerCount - 1 - cornerSlot
       icon.x = max(cornerX, DESKTOP_GRID_START_X)
-      icon.y = max(cornerY - above * ICON_SPACING, DESKTOP_GRID_START_Y)
+      icon.y = max(cornerY - above * cornerSpacing, DESKTOP_GRID_START_Y)
       inc cornerSlot
 
 proc newOSDesktop*(): OSDesktop {.moddable.} =
@@ -344,9 +363,6 @@ proc newOSDesktop*(): OSDesktop {.moddable.} =
       DesktopIcon(iconType: diPvP, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2,
                   selected: false, name: getIconName(diPvP),
                   iconColor: Color(r: 255, g: 50, b: 150, a: 255)),
-      DesktopIcon(iconType: diCoop, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
-                  selected: false, name: getIconName(diCoop),
-                  iconColor: Color(r: 120, g: 235, b: 120, a: 255)),
       DesktopIcon(iconType: diAdvancements, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
                   selected: false, name: getIconName(diAdvancements),
                   iconColor: Color(r: 90, g: 220, b: 255, a: 255)),
@@ -364,6 +380,9 @@ proc newOSDesktop*(): OSDesktop {.moddable.} =
       DesktopIcon(iconType: diMods, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diMods),
                   iconColor: Color(r: 120, g: 220, b: 160, a: 255)),
+      DesktopIcon(iconType: diCoop, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
+                  selected: false, name: getIconName(diCoop),
+                  iconColor: Color(r: 120, g: 235, b: 120, a: 255)),
       DesktopIcon(iconType: diFeedback, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diFeedback),
                   iconColor: Color(r: 255, g: 130, b: 90, a: 255)),
@@ -1887,9 +1906,9 @@ proc drawSystemMonitor(desktop: OSDesktop, screenWidth: int) =
   ## smoothly-drifting simulated load so the panel feels alive. Only Uptime is
   ## real (desktop session time).
   let panelW = 240'i32
-  let panelH = 128'i32
+  let panelH = SYSTEM_MONITOR_H.int32
   let panelX = (screenWidth - panelW.int - 14).int32
-  let panelY = 12'i32
+  let panelY = SYSTEM_MONITOR_Y.int32
   let tm = desktop.time
 
   # Depth halo, gradient body, crisp border. A light theme lifts the panel
@@ -2181,7 +2200,7 @@ proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: in
 # follows the grid when a short viewport (UI scale above 100%) reflows it into
 # more, shorter columns. The corner-anchored icons (last in the seq) form one
 # trailing column, matching how they are stacked on screen, which is how
-# diFeedback and diCredits stay reachable from the keyboard.
+# they stay reachable from the keyboard.
 proc desktopGridColumns(desktop: OSDesktop): tuple[rows, builtin, apps, cols: int] =
   ## Columns left to right: the built-in grid, then the mod-app columns (same
   ## row count, starting fresh), then the corner column if there is one.

@@ -135,23 +135,63 @@ proc nearestPlayer3D*(world: Game3D, pos: Vector3): Player3D {.moddable.} =
         best = d
         result = p
 
+const SeatSpacing3D = 8.0'f32   ## between teammates standing side by side
+
+proc seatOffset3D(world: Game3D, p: Player3D): Vector3 =
+  ## Where `p` stands next to a shared point (the spawn): side by side by seat.
+  vec3((float32(p.slot) - float32(world.players.len - 1) / 2) * SeatSpacing3D, 0, 0)
+
+proc lookAt3D(p: Player3D, view: Vector2) =
+  ## Turn `p` to `view` (yaw, pitch), their intent's aim included.
+  p.yaw = view.x
+  p.pitch = view.y
+  p.intent.aim = view
+
 proc seatPlayers3D*(world: Game3D, players2D: seq[Player], coop: CoopState) {.moddable.} =
   ## A co-op world: a player for every seat of the 2D run, side by side at the
   ## spawn, each with their own health carried in (when the world carries HP).
-  ## Out of the run stays out; down comes back here after their timer.
+  ## Out of the run stays out; down comes back here after their timer. Each
+  ## looks where the world's camera does, and the presses their 2D self had
+  ## (the dash, [Q], interact: here jump, trigger, reload) count as used.
   world.coop = coop
   world.players.setLen(0)
   for p2 in players2D:
-    let side = float32(p2.slot) - float32(players2D.len - 1) / 2
     let hp = if world.carryHp: p2.hp else: p2.maxHp
-    let p = newPlayer3D(world.spawnPos + vec3(side * 8.0'f32, 0, 0),
-                        if hp > 0: hp else: p2.maxHp, p2.slot)
+    let p = newPlayer3D(world.spawnPos, if hp > 0: hp else: p2.maxHp, p2.slot)
     p.maxHealth = max(p.maxHealth, p2.maxHp)
     p.eliminated = p2.eliminated
     p.downTimer = if p2.eliminated: 0'f32 else: p2.downTimer
     if p.downTimer > 0: p.health = 0
+    p.intent.edges = p2.intent.edges
+    p.intent.seen = p2.intent.edges
+    p.lookAt3D(Vector2(x: world.camera.yaw, y: world.camera.pitch))
     world.players.add p
+  for p in world.players: p.pos = world.spawnPos + world.seatOffset3D(p)
   world.player = world.localPlayer3D()
+
+proc settleSeats3D(world: Game3D, spawnBefore: Vector3, before: seq[Vector3]) =
+  ## A co-op world, right after world3dStart: the scripts built it around the
+  ## player they saw (`world.player`, this machine's), so the team goes where
+  ## they put the spawn or that player, and starts looking where they turned
+  ## the camera. A teammate a script placed itself stays put.
+  let lead = world.player
+  if world.players.len <= 1 or lead.isNil: return
+  var leadMoved = false
+  for k, p in world.players:
+    if p == lead and k < before.len: leadMoved = p.pos != before[k]
+  let spawnMoved = world.spawnPos != spawnBefore
+  let view = Vector2(x: world.camera.yaw, y: world.camera.pitch)
+  for k, p in world.players:
+    if p == lead: continue
+    p.lookAt3D(view)
+    if k >= before.len or p.pos != before[k]: continue
+    if leadMoved:
+      p.pos = lead.pos + world.seatOffset3D(p) - world.seatOffset3D(lead)
+    elif spawnMoved:
+      p.pos = world.spawnPos + world.seatOffset3D(p)
+    else:
+      continue
+    p.vel = vec3(0, 0, 0)
 
 proc downPlayer3D(world: Game3D, p: Player3D) =
   ## A co-op player's death in the world: down until a team life brings them
@@ -169,8 +209,7 @@ proc tickDown3D(world: Game3D, p: Player3D, dt: float32) =
   p.downTimer -= dt
   if p.downTimer > 0: return
   p.downTimer = 0
-  let side = float32(p.slot) - float32(world.players.len - 1) / 2
-  p.pos = world.spawnPos + vec3(side * 8.0'f32, 0, 0)
+  p.pos = world.spawnPos + world.seatOffset3D(p)
   p.vel = vec3(0, 0, 0)
   p.health = max(1.0'f32, p.maxHealth * Respawn3DHpFrac)
   p.invulnTimer = max(p.invulnTimer, Respawn3DInvuln)
@@ -306,6 +345,25 @@ proc damagePlayer3D*(world: Game3D, amount: float32, source = "script",
     if world.player.health <= 0: world.player.health = 1
   if world.player.health <= 0 and not world.coop.isNil:
     downPlayer3D(world, world.player)   # co-op: a team life, not the world
+
+proc shakeView3D*(world: Game3D, seconds: float32) {.moddable.} =
+  ## The camera trembles for `seconds` (world3d.shake): the view of the player
+  ## whose turn raised it, or everyone's for the world's own. A teammate's
+  ## turn on a co-op host shakes their screen, not this one (coop_fx).
+  recordFx(CoopFx(kind: fxShake3D, x: seconds))
+  if not teammateContext():
+    world.camera.shakeTime = max(seconds, 0'f32)
+
+proc aimView3D*(world: Game3D): tuple[eye, dir: Vector3] {.moddable.} =
+  ## Where the active player's eye is and where they look (world3d.aim): this
+  ## machine's camera for its own player, or a teammate's view in their turn
+  ## on a co-op host (they shoot from it).
+  let p = world.player
+  if p.isNil or p == world.localPlayer3D():
+    (world.camera.position, getForward(world.camera))
+  else:
+    let v = p.viewOf()
+    (v.position, getForward(v))
 
 proc healPlayer3D*(world: Game3D, amount: float32) {.moddable.} =
   world.player.health = min(world.player.maxHealth, world.player.health + amount)
@@ -602,6 +660,34 @@ proc homingTarget(world: Game3D, pos: Vector3): tuple[found: bool, pos: Vector3]
     if d < best:
       result = (true, world.boss.pos)
 
+proc playerShotHits(world: Game3D, proj: Projectile3D) =
+  ## A player's shot against the boss and the entities (in its shooter's turn).
+  if world.bossEnabled:
+    let hitResult = takeBossDamage(world.boss, proj)
+    if hitResult.hit:
+      # Spawn damage number at hit position
+      spawnDamageNumber3D(world.damageNumbers, hitResult.hitPos, hitResult.damageDealt)
+      proj.active = false
+  if proj.active:
+    for e in world.entities:
+      if not e.alive or e.id in proj.hitIds: continue
+      if distance(proj.pos, e.pos) < e.radius + proj.effectiveRadius():
+        let dealt = damageEntity3D(world, e, modWorld3DHit(proj.damage, e, "", proj))
+        if dealt > 0:
+          spawnDamageNumber3D(world.damageNumbers, proj.pos, dealt)
+        if proj.pierce > 0:
+          dec proj.pierce
+          proj.hitIds.add(e.id)
+        else:
+          proj.active = false
+          break
+
+proc shooterOf(world: Game3D, proj: Projectile3D): Player3D =
+  ## The player whose weapon fired `proj`, nil for none (or one who is gone).
+  if proj.shooter <= 0: return nil
+  for p in world.players:
+    if p.slot + 1 == proj.shooter: return p
+
 proc updateProjectiles(world: Game3D, dt: float32, holdEnemyHoming = false) =
   ## holdEnemyHoming: the boss is mid phase transition (its whole update, and with
   ## it the steering of its homing shots, pauses, as it always did).
@@ -636,25 +722,12 @@ proc updateProjectiles(world: Game3D, dt: float32, holdEnemyHoming = false) =
 
       # Check hits
       if proj.fromPlayer:
-        if world.bossEnabled:
-          let hitResult = takeBossDamage(world.boss, proj)
-          if hitResult.hit:
-            # Spawn damage number at hit position
-            spawnDamageNumber3D(world.damageNumbers, hitResult.hitPos, hitResult.damageDealt)
-            proj.active = false
-        if proj.active:
-          for e in world.entities:
-            if not e.alive or e.id in proj.hitIds: continue
-            if distance(proj.pos, e.pos) < e.radius + proj.effectiveRadius():
-              let dealt = damageEntity3D(world, e, modWorld3DHit(proj.damage, e, "", proj))
-              if dealt > 0:
-                spawnDamageNumber3D(world.damageNumbers, proj.pos, dealt)
-              if proj.pierce > 0:
-                dec proj.pierce
-                proj.hitIds.add(e.id)
-              else:
-                proj.active = false
-                break
+        let shooter = world.shooterOf(proj)
+        if shooter.isNil or shooter == world.player:
+          playerShotHits(world, proj)
+        else:
+          withPlayer3D(world, shooter):
+            playerShotHits(world, proj)
       else:
         for p in world.players:
           if p.isUp3D and distance(proj.pos, p.pos) < p.radius + proj.effectiveRadius():
@@ -762,8 +835,12 @@ proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
 
   if not world.startFired:
     world.startFired = true
+    let spawnBefore = world.spawnPos
+    var before: seq[Vector3]
+    for p in world.players: before.add p.pos
     modWorld3DStart(world, world.resumed)
     processWorld3DActions(world)
+    if coopWorld: settleSeats3D(world, spawnBefore, before)
 
   world.timeElapsed += dt
 

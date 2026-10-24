@@ -36,7 +36,6 @@ type
     modeIndex: int     ## into modeChoices()
     heat: int
     kit: int
-    ready: bool
     highestHeat*: int  ## the roguelite Heat this profile reached (main.nim sets it)
     recursionBonus*: float32  ## this profile's banked Recursion (main.nim sets it; sent when ready)
     recursionLevel*: int32
@@ -254,8 +253,8 @@ proc startHosting(cw: CoopWindow) =
     return
   cw.rememberFields("")
   try:
-    discard hostCoop(port, cw.maxPlayers, cw.myMember, cw.currentConfig)
-    cw.ready = true
+    discard hostCoop(port, cw.maxPlayers, cw.myMember, cw.currentConfig,
+                     profileUid(activeProfileSlot))
   except CatchableError:
     cw.setStatus(t(tkCoopHostFailed).replace("$1", $port))
 
@@ -271,15 +270,13 @@ proc startJoining(cw: CoopWindow) =
     return
   cw.rememberFields(host)
   try:
-    discard joinCoop(host, port, cw.myMember)
-    cw.ready = false
+    discard joinCoop(host, port, cw.myMember, profileUid(activeProfileSlot))
   except CatchableError:
     cw.setStatus(t(tkCoopError).replace("$1", getCurrentExceptionMsg()))
 
 proc leaveSession(cw: CoopWindow) =
   if not activeCoop.isNil:
     activeCoop.closeCoop()
-  cw.ready = false
 
 # ---------------------------------------------------------------------------
 # Update
@@ -363,7 +360,7 @@ proc updateCoopWindow*(cw: CoopWindow, dt: float32, screenWidth, screenHeight: i
     s.setLobbyConfig(cw.currentConfig)
   of HoverKits .. HoverKits + 2:
     cw.kit = cw.hover - HoverKits
-    s.setReady(cw.ready or s.isHost, int32(cw.kit), cw.recursionBonus, cw.recursionLevel)
+    s.setReady(s.readyWanted or s.isHost, int32(cw.kit), cw.recursionBonus, cw.recursionLevel)
   of HoverPrimary:
     if s.isHost:
       if s.phase == cpHostLobby and s.readyToStart:
@@ -371,8 +368,7 @@ proc updateCoopWindow*(cw: CoopWindow, dt: float32, screenWidth, screenHeight: i
         s.startCoopRun()
         cw.window.visible = false
     elif s.phase == cpClientLobby:
-      cw.ready = not cw.ready
-      s.setReady(cw.ready, int32(cw.kit), cw.recursionBonus, cw.recursionLevel)
+      s.setReady(not s.readyWanted, int32(cw.kit), cw.recursionBonus, cw.recursionLevel)
   of HoverLeave:
     cw.leaveSession()
   else: discard
@@ -531,10 +527,10 @@ proc drawCoopWindow*(cw: CoopWindow) {.moddable.} =
         if wait.len > 0:
           drawTextFit(wait, lo.primary.x.int32, lo.statusY.int32, lo.note.width.int32, 14, ColMuted)
       else:
-        drawButton(lo.primary, (if cw.ready: t(tkCoopNotReadyButton) else: t(tkCoopReadyButton)),
-                   (if cw.ready: Color(r: 90, g: 80, b: 40, a: 255) else: Color(r: 46, g: 120, b: 70, a: 255)),
+        drawButton(lo.primary, (if s.readyWanted: t(tkCoopNotReadyButton) else: t(tkCoopReadyButton)),
+                   (if s.readyWanted: Color(r: 90, g: 80, b: 40, a: 255) else: Color(r: 46, g: 120, b: 70, a: 255)),
                    cw.hover == HoverPrimary, s.phase == cpClientLobby)
-        if cw.ready:
+        if s.readyWanted:
           drawTextFit(t(tkCoopWaitingHost), lo.primary.x.int32, lo.statusY.int32,
                       lo.note.width.int32, 14, ColMuted)
       drawButton(lo.leave, t(tkCoopLeaveButton), Color(r: 110, g: 50, b: 50, a: 255),

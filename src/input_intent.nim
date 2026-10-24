@@ -67,6 +67,7 @@ proc captureLocalIntent*(p: Player) {.moddable.} =
   # code last projected (setGamepadAimPointWorld), which is where walls go.
   let pointer = getWorldMousePosition()
   it.aim = Vector2(x: pointer.x, y: pointer.y)
+  it.view3D = false
   it.aimByDir = isGamepadActive()
   it.aimDir = if it.aimByDir: aimDir() else: Vector2(x: 0, y: 0)
   it.aimAssist = globalSettings.aimAssistEnabled

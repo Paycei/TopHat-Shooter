@@ -578,9 +578,9 @@ proc installWorld3dLibrary(base: ScriptTable) =
   t.reg("healPlayer") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     healPlayer3D(vm.requireWorld("world3d.healPlayer"), vm.numArg(args, 0, "healPlayer"))
   t.reg("shake") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## world3d.shake(intensity) -- the camera trembles for `intensity` seconds (max 5)
+    ## world3d.shake(intensity) -- the camera trembles for `intensity` seconds (max 5); in co-op, the screen of the player whose turn it is (everyone's outside one)
     let w = vm.requireWorld("world3d.shake")
-    w.camera.shakeTime = max(vm.numArg(args, 0, "shake"), 0'f32)
+    shakeView3D(w, vm.numArg(args, 0, "shake"))
   t.reg("damageBoss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## world3d.damageBoss(n) -> true if this world has a boss to hurt (its HP is not writable)
     let w = vm.requireWorld("world3d.damageBoss")
@@ -601,12 +601,11 @@ proc installWorld3dLibrary(base: ScriptTable) =
     let maxDist = vm.optNumArg(args, 6, "raycast", 1000)
     ret.setRet(hitTable(w, raycast3D(w, origin, dir, maxDist)))
   t.reg("aim") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## world3d.aim() -> x, y, z, dx, dy, dz: the camera position and where it looks
+    ## world3d.aim() -> x, y, z, dx, dy, dz: the player's eye and where they look (this machine's camera; in co-op, the player whose turn it is: the one shooting in world3dShoot)
     let w = vm.requireWorld("world3d.aim")
-    let f = getForward(w.camera)
-    ret.setRet([vnum(w.camera.position.x.float64), vnum(w.camera.position.y.float64),
-                vnum(w.camera.position.z.float64), vnum(f.x.float64), vnum(f.y.float64),
-                vnum(f.z.float64)])
+    let (eye, f) = aimView3D(w)
+    ret.setRet([vnum(eye.x.float64), vnum(eye.y.float64), vnum(eye.z.float64),
+                vnum(f.x.float64), vnum(f.y.float64), vnum(f.z.float64)])
   t.reg("toScreen") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## world3d.toScreen(x, y, z) -> screen x, y, visible (in front of the camera and on screen)
     let w = vm.requireWorld("world3d.toScreen")

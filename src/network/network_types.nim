@@ -200,6 +200,8 @@ type
       requestModBulletSkin*: int16
       lobbyKind*: int32            ## LobbyPvP or LobbyCoop: a host refuses the other kind
       layoutHash*: uint32          ## co-op: the run state's type layout (coop_codec)
+      profileId*: string           ## co-op: the joining profile's id (save_system.profileUid);
+                                   ## a host refuses a profile already in its game
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int

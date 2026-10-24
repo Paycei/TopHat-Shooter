@@ -1,6 +1,8 @@
 # Co-op over real loopback UDP (src/coop/coop_session.nim): a host session and
 # a client session in one process, each with its own side of the co-op globals
-# swapped in around it. The client joins, readies with a kit, mirrors a wave
+# swapped in around it. The client joins, readies with a kit (a lost ready or
+# unready goes again), and another game on a profile already in the lobby is
+# refused. It mirrors a wave
 # run its bot plays from the client side (its input crosses the network and
 # drives its player on the host), makes its own team-modal choices, receives
 # its profile progress exactly once and in order, and gets its own statistics
@@ -154,9 +156,9 @@ var host, mirror: Game
 
 on(hostSide):
   hostSide.session = hostCoop(port, 4, CoopMemberNet(nickname: "Host"),
-                              CoopRunConfigNet(mode: int32(ord(gmWaveBased))))
+                              CoopRunConfigNet(mode: int32(ord(gmWaveBased))), "host-profile")
 on(clientSide):
-  clientSide.session = joinCoop("127.0.0.1", port, CoopMemberNet(nickname: "Guest"))
+  clientSide.session = joinCoop("127.0.0.1", port, CoopMemberNet(nickname: "Guest"), "guest-profile")
 let hs = hostSide.session
 let cs = clientSide.session
 
@@ -171,6 +173,35 @@ check(pumpUntil(host, mirror, proc (): bool = hs.readyToStart),
 check(hs.members[1].starterKit == 2, "the client's starter kit reached the host")
 check(abs(hs.members[1].recursionBonus - 0.12) < 1e-6 and hs.members[1].recursionLevel == 2,
       "and the Recursion its own profile banked")
+
+# A ready (or unready) whose packet is lost goes again until the host's lobby
+# shows it.
+on(clientSide): cs.readyWanted = false   # (as if its packet never arrived)
+check(pumpUntil(host, mirror, proc (): bool = not hs.readyToStart),
+      "a lost unready reaches the host")
+on(clientSide): cs.setReady(true, 2, 0.12, 2)
+check(pumpUntil(host, mirror, proc (): bool = hs.readyToStart), "ready again")
+
+# One profile, one seat: another game on a profile already in the lobby (the
+# host's, or a seated client's) is refused; a different profile is seated.
+proc tryJoin(profile: string): string =
+  ## Another game joins with `profile`: "" once seated, else why it wasn't.
+  var side = Side(role: crClient)
+  on(side): side.session = joinCoop("127.0.0.1", port, CoopMemberNet(nickname: "Twin"), profile)
+  let ds = side.session
+  for _ in 0 ..< 600:
+    if ds.phase in {cpClientLobby, cpError}: break
+    on(side): pollCoopSession(ds, nil, Dt)
+    pump(host, mirror, wait = true)
+  result = if ds.phase == cpClientLobby: "" else: "refused: " & ds.errorText
+  on(side): ds.closeCoop()
+  discard pumpUntil(host, mirror, proc (): bool = hs.members.len == 2)
+let twinOfHost = tryJoin("host-profile")
+check("profile" in twinOfHost, "the host's profile can't join its own game (" & twinOfHost & ")")
+let twinOfGuest = tryJoin("guest-profile")
+check("profile" in twinOfGuest, "nor a seated client's (" & twinOfGuest & ")")
+check(tryJoin("third-profile") == "", "another profile is seated")
+check(hs.members.len == 2 and cs.mySlot == 1 and hs.readyToStart, "the lobby is as it was")
 
 # --------------------------------------------------------- the first run --
 
@@ -280,6 +311,7 @@ on(hostSide): hs.backToLobby()
 on(clientSide): cs.backToLobby()
 check(pumpUntil(host, mirror, proc (): bool = cs.phase == cpClientLobby and not hs.readyToStart),
       "both are back in the lobby, the client not ready")
+check(not cs.readyWanted, "and its Ready button says so")
 on(clientSide): cs.setReady(true, 0)
 check(pumpUntil(host, mirror, proc (): bool = hs.readyToStart), "ready for the second run")
 on(hostSide):

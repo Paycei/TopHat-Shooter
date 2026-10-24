@@ -852,11 +852,9 @@ proc sweepEntityData(game: Game) =
       if kind in [EdEnemy, EdBullet, EdThing] and k notin live: gone.add(k)
     for k in gone: m.entityData.del(k)
 
-proc captureRunData*(game: Game, entities: bool) =
-  ## Serialize every mod's run.data into game.modRunData (both save layers
-  ## call this right before writing; see mod_state.captureModRunData). The
-  ## per-entity data goes along only with an exact snapshot (`entities`): a run
-  ## save rebuilds its enemies, whose ids then mean something else.
+const HudDataKey = "@hud"   ## co-op: the HUD parts scripts hid, in the run.data the clients get
+
+proc runDataJson(entities: bool): JsonNode =
   let root = newJObject()
   for m in mods:
     if not m.runData.isNil and (m.runData.len > 0 or m.runData.hashCount > 0):
@@ -867,6 +865,14 @@ proc captureRunData*(game: Game, entities: bool) =
         if t.len > 0 or t.hashCount > 0:
           ed[$k] = toJsonNode(vtable(t))
       if ed.len > 0: root["@e:" & m.id] = ed   # mod ids cannot contain '@'
+  root
+
+proc captureRunData*(game: Game, entities: bool) =
+  ## Serialize every mod's run.data into game.modRunData (both save layers
+  ## call this right before writing; see mod_state.captureModRunData). The
+  ## per-entity data goes along only with an exact snapshot (`entities`): a run
+  ## save rebuilds its enemies, whose ids then mean something else.
+  let root = runDataJson(entities)
   game.modRunData = if root.len > 0: $root else: ""
 
 proc restoreRunData*(game: Game) =
@@ -893,6 +899,43 @@ proc restoreRunData*(game: Game) =
           except ValueError: discard
   except CatchableError:
     modLogAdd(mlWarn, "", "saved run.data could not be read; mods start it empty")
+
+var
+  coopDataGame: pointer   ## client: the run whose run.data was last taken from the host
+  coopDataSeen: string    ## and the host's copy it was taken from
+
+proc modCoopShareRunData*(game: Game) =
+  ## Co-op host, before each snapshot: every mod's run.data, and the HUD parts
+  ## scripts hid, into game.modRunData, which the snapshots carry (a Game
+  ## field). Clients take it with modCoopTakeRunData, so their drawing hooks
+  ## read the host's run.data. e.data stays on the host.
+  if mods.len == 0 or game.isNil: return
+  let root = runDataJson(entities = false)
+  if hiddenHud != {}:
+    let parts = newJArray()
+    for part in hiddenHud: parts.add %($part)
+    root[HudDataKey] = parts
+  game.modRunData = if root.len > 0: $root else: ""
+
+proc modCoopTakeRunData*(game: Game) =
+  ## Co-op client, after each snapshot: every mod's run.data and the hidden
+  ## HUD parts become the host's, whenever its copy changed (and at a run's
+  ## start). What a script here writes into run.data lasts until then.
+  if mods.len == 0 or game.isNil: return
+  if cast[pointer](game) == coopDataGame and game.modRunData == coopDataSeen: return
+  coopDataGame = cast[pointer](game)
+  coopDataSeen = game.modRunData
+  restoreRunData(game)
+  hiddenHud = {}
+  if game.modRunData.len == 0: return
+  try:
+    let root = parseJson(game.modRunData)
+    if root.kind == JObject and root.hasKey(HudDataKey) and root[HudDataKey].kind == JArray:
+      for x in root[HudDataKey]:
+        for part in HudPart:
+          if x.kind == JString and x.getStr == $part: hiddenHud.incl part
+  except CatchableError:
+    discard   # (restoreRunData has logged it)
 
 # ------------------------------------------------------ mod game modes ----
 # register.gamemode: a vanilla base mode (wave / survival / roguelite) plus a
@@ -1104,10 +1147,12 @@ proc modCoopClientFrame*(game: Game) =
   ## main.nim, every frame of a co-op client's run: scripts see the run it
   ## draws (the host's, as its snapshots fill it in), to read and draw from.
   ## The host simulates it, so the gameplay hooks fire there and never here;
-  ## whatever a script here queues to spawn or remove is dropped.
+  ## whatever a script here queues to spawn or remove is dropped. The host's
+  ## run.data (and hidden HUD parts) come with its snapshots.
   modCtx.game = game
   modCtx.inPvP = false
   modCtx.coopClient = true
+  modCoopTakeRunData(game)
 
 proc modWatchState*(game: Game) =
   ## main.nim, once per frame before the state machine: `stateChange` for any

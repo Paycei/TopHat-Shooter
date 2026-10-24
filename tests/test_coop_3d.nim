@@ -4,14 +4,19 @@
 # a sandbox run; the client mirrors it, plays its own player there (its input
 # crosses the network; its movement is predicted), both players hurt the boss,
 # a down spends a team life and comes back, and leaving the world hands each
-# player's health back to their 2D self.
+# player's health back to their 2D self. Then a fresh world's first look (no
+# jump, shot or skyward stare carried in from the 2D run), a mod's world (its
+# spawn and view for the whole team, a teammate's aim and shake in their turn,
+# run.data and hidden HUD parts reaching the client), and a client who leaves
+# mid-world.
 #   nim r --mm:orc tests/test_coop_3d.nim
 #   nim r --mm:orc -d:danger tests/test_coop_3d.nim
 
 import std/[os, random, math, strutils]
 import raylib
 import ../src/[game, types, settings, run_statistics, input_intent, vec]
-import ../src/game3d/[types_3d, game_3d]
+import ../src/game3d/[types_3d, engine_3d, game_3d, player_3d]
+import ../src/modding/[lua_bridge, mod_hooks, mod_loader, mod_catalog]
 import ../src/network/network_types
 import ../src/coop/[coop_context, coop_bot, coop_session, coop_present, coop_smooth]
 from ../src/fx_rand import seedFxRand
@@ -96,7 +101,7 @@ on(hostSide):
   discard addCoopPlayer(host, "Guest")
   beginCoopRun(host)
   host.coop.nicknames[0] = "Host"
-  host.coop.teamLives = 3
+  host.coop.teamLives = 40   # (the bots carry 7 and 5 HP in: the boss downs them often)
   hs.startRequested = false
 check(pumpUntil(host, mirror, proc (): bool = cs.startRequested), "the client is told the run started")
 on(clientSide):
@@ -119,6 +124,7 @@ on(hostSide):
         "the host's world seats both players")
   check(activeWorld3D.players[0].health == 7 and activeWorld3D.players[1].health == 5,
         "each brings their own health")
+  updateGame(host, Dt)   # (its first frame: a client takes the world once that has run)
 check(pumpUntil(host, mirror, proc (): bool = not clientSide.world.isNil),
       "the client gets the world")
 on(clientSide):
@@ -212,7 +218,160 @@ check(pumpUntil(host, mirror, proc (): bool = clientSide.world.isNil), "the clie
 on(clientSide):
   check(mirror.state != gs3DBoss and mirror.game3D.isNil, "and is back in the 2D run")
 
+proc teamFrame(clientYaw = NaN.float32, shoot = false) =
+  ## One frame of both machines: the client as coopClient3DFrame plays it (its
+  ## own view, turned to `clientYaw` when given; `shoot` pulls the trigger),
+  ## the host as main.nim runs it.
+  on(clientSide):
+    pollCoopSession(cs, mirror, Dt)
+    let cw = activeWorld3D
+    if not cw.isNil and mirror.state == gs3DBoss:
+      let me3 = cw.localPlayer3D()
+      if not clientYaw.isNaN: cw.camera.yaw = clientYaw
+      var it = me3.intent
+      beginIntentFrame(it)
+      it.view3D = true
+      it.aim = Vector2(x: cw.camera.yaw, y: cw.camera.pitch)
+      if shoot: pressEdge(it, Edge3DTrigger)
+      me3.intent = it
+      mirror.players[localSlot].intent = it
+      predictLocal3D(mirror, Dt, cs.nextIntentSeq)
+      smoothFrame3D(mirror, Dt, cs.snapshotAge)
+      replayCoopFx(mirror)
+  on(hostSide):
+    pollCoopSession(hs, host, Dt)
+    updateGame(host, Dt)
+  sleep(1)
+
+proc leaveWorldNow() =
+  on(hostSide):
+    if not activeWorld3D.isNil:
+      finishWorld3D(activeWorld3D, w3Exit)
+      updateGame(host, Dt)
+  discard pumpUntil(host, mirror, proc (): bool = clientSide.world.isNil)
+
+# ------------------------------------------------ a world's first look --
+# The client's 2D input still aims at a point of the arena and carries presses
+# its 2D self had: its seat must look where the world does (not at a pitch of
+# 400 degrees, the sky), and neither jump, shoot nor reload on the way in.
+var dashes: int32
+on(clientSide):
+  let me = mirror.players[cs.mySlot]
+  me.intent.aim = Vector2(x: 600, y: 400)
+  me.intent.view3D = false
+  for e in IntentEdge: me.intent.edges[e] += 4
+  dashes = me.intent.edges[ieDash]
+check(pumpUntil(host, mirror, proc (): bool = host.players[1].intent.edges[ieDash] >= dashes and
+                                             not host.players[1].intent.view3D),
+      "the client's 2D input reaches the host")
+on(hostSide):
+  enterWorld3D(host, World3DOptions(bossEnabled: false))
+  for _ in 0 ..< 3: updateGame(host, Dt)
+  let w = activeWorld3D
+  let seat = w.players[1]
+  check(abs(seat.pitch - w.camera.pitch) < 0.01 and abs(seat.yaw - w.camera.yaw) < 0.01,
+        "a client's seat looks where the world does (" & $seat.yaw & ", " & $seat.pitch & ")")
+  check(w.projectiles.len == 0 and seat.vel.y < 10, "and its old presses neither shoot nor jump")
+check(pumpUntil(host, mirror, proc (): bool = not clientSide.world.isNil), "the client gets the new world")
+on(clientSide):
+  check(abs(activeWorld3D.camera.pitch) < 0.01, "and starts looking ahead, not at the sky")
+for f in 0 ..< 60: teamFrame(clientYaw = 30)
+on(hostSide):
+  check(abs(activeWorld3D.players[1].yaw - 30) < 0.01, "then its own view turns its seat")
+leaveWorldNow()
+on(hostSide):
+  check(not consumeEdge(host.players[1], ieDash) and not consumeEdge(host.players[1], ieAbility),
+        "and its 3D presses leave none pending for its 2D self")
+
+# --------------------------------------------- a mod's world, in co-op --
+# The script builds the world around the player it sees (the host's): it moves
+# the spawn and that player onto its ground, turns the camera and hides a HUD
+# part. A shot it takes over reads the shooter's aim and shakes their view.
+let modDir = modsRootDir() / "coopworld"
+createDir(modDir)
+writeFile(modDir / "mod.json", """{"id": "coopworld", "name": "Co-op world", "version": "1.0.0"}""")
+writeFile(modDir / "main.lua", """
+hooks.on("world3dStart", function(world, resumed)
+  world3d.platform{x = 0, y = -1, z = 0, w = 400, h = 2, d = 400}
+  world.spawnPos = {x = 40, y = 1, z = 70}
+  world.player.pos = {x = 40, y = 1, z = 70}
+  world.camera.yaw = -90
+  run.data.built = true
+  hud.hide("crosshair")
+  for _, p in ipairs(world.players) do p.weapon.fireRate = 0.3 end
+end)
+hooks.on("world3dShoot", function(world)
+  local p = world.player
+  if run.data["eye" .. p.slot] ~= nil then return end   -- (a seat's later shots fire)
+  local x, y, z = world3d.aim()
+  run.data["eye" .. p.slot] = math.abs(x - p.pos.x) < 0.01 and math.abs(z - p.pos.z) < 0.01
+  world3d.shake(0.5)
+  return true
+end)
+hooks.on("world3dEntityDeath", function(e)
+  if e.tag == "target" then run.data.killedBy = world3d.player.slot end
+end)
+""")
+reloadMods(@["coopworld"])
+check(mods.len == 1, "the test mod loads")
+on(hostSide):
+  enterWorld3D(host, World3DOptions(bossEnabled: false))
+  updateGame(host, Dt)
+  let w = activeWorld3D
+  let seat = w.players[1]
+  check(abs(seat.pos.x - 48) < 0.5 and abs(seat.pos.z - 70) < 0.5 and seat.pos.y > 0,
+        "the client's seat goes to the script's spawn, on its ground (" & $seat.pos & ")")
+  check(abs(seat.yaw + 90) < 0.01, "looking where the script turned the camera")
+  check(w.players[0].weapon.fireRate == 0.3'f32 and seat.weapon.fireRate == 0.3'f32,
+        "a script reaches every seat through world.players")
+check(pumpUntil(host, mirror, proc (): bool = not clientSide.world.isNil), "the client gets the mod's world")
+on(clientSide):
+  check(abs(activeWorld3D.camera.yaw + 90) < 0.01, "and its view starts there too")
+for f in 0 ..< 30: teamFrame()
+teamFrame(shoot = true)
+for f in 0 ..< 30: teamFrame()
+on(hostSide):
+  check(truthy(rawGetStr(mods[0].runData, "eye1")),
+        "the client's shot reads the client's own aim (world3d.aim)")
+  check(activeWorld3D.camera.shakeTime <= 0, "and shakes no one's view but theirs")
+on(clientSide):
+  check(activeWorld3D.camera.shakeTime > 0, "the client's view shakes")
+# A target right in front of the client: the kill its shot makes is the client's.
+on(hostSide):
+  let w = activeWorld3D
+  let seat = w.players[1]
+  let target = newEntity3D(w, "target")
+  target.hp = 1
+  target.maxHp = 1
+  target.pos = seat.pos + vec3(0, 1.5, 0) + seat.viewOf().getForward() * 12
+  queueWorld3DAction(World3DAction(kind: wkSpawnEntity, entity: target))
+var killedBy = NilValue
+for f in 0 ..< 120:
+  teamFrame(shoot = f mod 10 == 0)
+  killedBy = rawGetStr(mods[0].runData, "killedBy")
+  if killedBy.kind != vkNil: break
+check(killedBy.kind == vkNumber and killedBy.n == 1,
+      "a client's kill runs in the client's turn (world3dEntityDeath)")
+check(pumpUntil(host, mirror, proc (): bool = mirror.modRunData == host.modRunData and
+                                             "built" in mirror.modRunData),
+      "run.data travels with the snapshots")
+hiddenHud = {}
+mods[0].runData = newScriptTable()
+on(clientSide): modCoopClientFrame(mirror)
+check(truthy(rawGetStr(mods[0].runData, "built")) and hpCrosshair in hiddenHud,
+      "a client's scripts read the host's run.data and HUD")
+
+# ------------------------------------------- a client leaves the world --
 on(clientSide): cs.closeCoop()
+for _ in 0 ..< 10:
+  on(hostSide):
+    pollCoopSession(hs, host, Dt)
+    updateGame(host, Dt)
+  sleep(1)
+on(hostSide):
+  check(activeWorld3D.players[1].eliminated, "a client who leaves is out of the world too")
+  check(not activeWorld3D.teamOut3D, "while the host plays on")
+
 on(hostSide): hs.closeCoop()
 removeDir(sandboxDir)
 echo passed, " passed, ", failures, " failed"
